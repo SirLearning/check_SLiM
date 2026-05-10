@@ -1,0 +1,48 @@
+// Keywords: nonWF, non-Wright-Fisher
+
+initialize() {
+	initializeSLiMModelType("nonWF");
+	defineConstant("K", 10);
+	
+	initializeMutationType("m1", 0.5, "f", 0.0);
+	m1.convertToSubstitution = T;
+	initializeGenomicElementType("g1", m1, 1.0);
+	initializeGenomicElement(g1, 0, 99999);
+	initializeMutationRate(1e-7);
+	initializeRecombinationRate(1e-8);
+	
+	// delete any existing pedigree log files
+	deleteFile("mating.txt");
+	deleteFile("death.txt");
+}
+reproduction() {
+	// choose a mate and generate an offspring
+	mate = subpop.sampleIndividuals(1);
+	child = subpop.addCrossed(individual, mate);
+	child.tag = sim.tag;
+	sim.tag = sim.tag + 1;
+	
+	// log the mating
+	line = paste(community.tick, individual.tag, mate.tag, child.tag);
+	writeFile("mating.txt", line, append=T);
+}
+1 early() {
+	sim.addSubpop("p1", 10);
+	
+	// provide initial tags and remember the next tag value
+	p1.individuals.tag = 1:10;
+	sim.tag = 11;
+}
+early() {
+	// density-dependence
+	p1.fitnessScaling = K / p1.individualCount;
+}
+survival() {
+	if (!surviving) {
+		// log the death
+		line = community.tick + " " + individual.tag;
+		writeFile("death.txt", line, append=T);
+	}
+	return NULL;
+}
+100 late() { sim.simulationFinished(); }

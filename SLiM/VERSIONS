@@ -1,0 +1,1373 @@
+VERSION HISTORY
+
+This version history begins with the final release of version 2.0.  Versions prior to 2.0 are lost in the mists of time; since the switch from 1.8 to 2.0 was so large, it was not worth tracking all of the individual changes that were made.
+
+Note that not every commit will be logged here; that is what the Github commit history is for.  The purpose of this file is to record major feature additions, major bug fixes, etc., so that it is easier to track down which version number a particular major change occurred in.  To that end, major changes made in the development head will be logged below; when we decide to roll a new version number and do a new release, all of those development head changes will be reassigned as belonging to the new version number.
+
+
+development head (in the master branch):
+
+
+version 5.2 (Eidos version 4.2):
+	add cppcheck support in our cmake config, for development testing purposes
+	speed up the SpatialMap smooth() method in 2D without periodicity, since this is important for the Chevy et al. competition algorithm
+	add Plot method setBorderless() for making plots without border annotations -- no axes, ticks, labels
+	fix display of images in Plot; it was antialiasing in some cases (such as PDF generation), which is not desirable
+	add segments() call to Plot, for plotting a set of unconnected line segments
+	add rects() call to Plot, for plotting a set of rectangles
+	extend text() to support drawing text at an angle, with new [float angle = 0.0] parameter
+	add mtext() call to Plot, for drawing text in the margins outside the plot area
+	add rowSums() and colSums() functions to Eidos, for use with matrices as a faster alternative to apply()
+	add the PCG random number generator, switch to pcg32_fast and pcg64_fast, remove all use of the old taus2 and MT19937-64 generators; note this completely breaks backward reproducibility
+	fix various bugs involving conflicts between defined constants and other symbols, including #573 and #574; this sets new definition rules that could break some existing scripts (but is unlikely to)
+	fix #575, QtSLiM terminates early when single-stepping with a rescheduled script block
+	fix #579, crash in models with (a) tree-seq recording, (b) multiple chromosomes, AND (c) rejection of proposed offspring in modifyChild()
+	add readLine() function for obtaining stdin input to running models, thanks to Chris Talbot
+	fix #580, add isClose() and allClose() Eidos functions for comparison within a given tolerance
+	shift to macOS 14 as the oldest supported macOS version in GitHub Actions; we no longer test on macOS 13, or with Qt 5.x on macOS (but Qt 5.x still gets tested on other platforms, for now)
+	SIMD and SLEEF optimizations thanks to Andy Kern:
+		add SIMD optimization for sqrt(), abs(), floor(), ceil(), trunc(), round(), sum(), product(), https://github.com/MesserLab/SLiM/pull/578
+		further SIMD optimizations for exp(), log(), log10(), log2() based on the SLEEF framework (https://github.com/shibatch/sleef), https://github.com/MesserLab/SLiM/pull/587
+		SIMD optimization for dnorm() using the previous SLEEF work, https://github.com/MesserLab/SLiM/pull/588
+		SIMD optimizations for spatial interaction strength calculations, https://github.com/MesserLab/SLiM/pull/590
+		add comprehensive tests for spatial interaction kernel calculations; includes SIMD vs scalar consistency tests, C++ level tests, and script-level tests, https://github.com/MesserLab/SLiM/pull/592
+		add SIMD acceleration for trig functions (sin(), cos(), tan(), asin(), acos(), atan(), atan2()), power functions (^ opperator, pow, SpatialMap.pow()), https://github.com/MesserLab/SLiM/pull/595
+		add SIMD acceleration to SpatialMap.smooth() for 2-6x speedup, https://github.com/MesserLab/SLiM/pull/599
+	fix #593, Student's T distribution had a sign error in the SpatialKernel method tdist(), thanks to Andy Kern, https://github.com/MesserLab/SLiM/issues/591
+	update citations listed by citation()
+	CI workflow for calculating code coverage with Codecov, thanks to Andy Kern, https://github.com/MesserLab/SLiM/pull/601
+	fix #594, the pedigreeID and haplosomePedigreeID properties should be accessible (without other predigree-tracking features) in tree-seq models, even without pedigree tracking being enabled
+	fix #584, a way to generate a random 64-bit integer is needed; added new rdunif64(integer$ n) function for this purpose
+	shift over to Release 1 of the Total-Random fork of the PCG random number generator (better maintained), found at https://github.com/Total-Random/pcg-cpp/releases/tag/v1.0
+	fix #602, (float)rdirichlet(integer$ n, numeric alpha) function to Eidos for Dirichlet distribution draws
+	fix #610, distribution draws behave inconsistently with out-of-range parameters
+		rlnorm() accepted SD < 0 and returned a value; it should error, as rnorm() does (R returns NAN in the SD < 0 case, but erroring is more consistent with Eidos policies)
+		rexp() returned values for rate < 0; this should also error, consistent with Eidos policies
+	add zygosityOfMutations([No<Mutation> mutations = NULL], [integer$ hemizygousValue = 1], [integer$ haploidValue = 1]) for assessing zygosity (see also mutationsFromHaplosomes())
+	policy change: the nucleotide and nucleotideValue properties of Substitution are now read-only (I think it was a bug that they were ever read-write...?)
+	change rects drawn by the Plot method rects() to have mitered corners, not bevelled
+	fix #564, initializeMutationRateFromFile() needs a `sex` parameter
+	fix #570, setMigrationRates() should make it easier to stop all migration (done in multitrait to avoid the annoying doc conflicts)
+		specifically, this entails two changes:
+			allow a singleton migration rate value, applied for all subpops given
+			allow the destination subpop to be given as a source, iff all rates supplied are 0.0, to stop all migration: allSubpops.setMigrationRates(allSubpops, 0.0)
+	fix #567, plot windows can have their aspect ratio distorted due to screen size and other constraints
+	extend the Eidos identical() function to allow comparison of more than two parameters; e.g., (logical$)identical(* x, * y, ...)
+	policy change: mean(integer(0)) or mean(float(0)) now returns NAN rather than NULL, to match R; I just noticed this, and NAN does seem better
+	fix #612, Haplosome needs a mutationCount property
+	fix #621, add a Laplace distribution function, rlaplace()
+	fix a bug (a regression, introduced in SLiM 3.7!) in printing of large float values; ".0" is sometimes shown erroneously
+	fix #598: in Xcode and Qt Creator, force AVX2 and FMA on for x86_64 builds (true since 2013), and NEON on for ARM64 builds (true since forever); this is pretty safe, and makes SIMD/SLEEF work even without the CMake magic for them
+
+version 5.1 (Eidos version 4.1):
+	add recipe 16.11, life-long monogamous mating
+	add the ability to suppress the header line of a LogFile, with a new [logical$ header = T] parameter to createLogFile() (#516), and adding [Nl$ header = NULL] for setFilePath() (#516)
+	add [string$ sex = "*"] parameter to initializeRecombinationRateFromFile(), passed through to initializeRecombinationRate(); fixing an oversight (#524)
+	write "chromosomes" and "this_chromosome" keys out to provenance as well as metadata (#520)
+	fix an annoying autoindent cursor position bug that I suspect is a Qt 6 regression in QPlainTextEdit
+	add a define of TSK_TRACE_ERRORS in Xcode for slim and SLiMguiLegacy, in DEBUG only, for easier tskit debugging; break on _tsk_trace_error()
+	fix a regression that caused the sourceSubpop pseudo-parameter to be NULL in modifyChild() callbacks in all cases; add tests, improve documentation (#522)
+	add chromosomeSubposition property to Haplosome, providing whether the haplosome is index 0 or 1 within its individual, within the set of haplosomes for its associated chromosome
+	add a (numeric)sign(numeric x) function that returns the sign (-1, 0, 1) of each element
+	calcFST() with a windowed range (start/end) would error; was missing a unit test (#548)
+	calcSFS() with an integer (non-NULL) binCount would error in multi-chromosome models if mutations from multiple chromosomes (or NULL) were given
+	survival() callback that moves individuals did not correctly update has_null_haplosomes_, leading to a crash or a DEBUG raise (#549)
+	calcMeanFroh() did not focus on the specified chromosome correctly, in multi-species models, and thus produced incorrect results (#545)
+	add infinite loop checking in Eidos; add [logical$ checkInfiniteLoops = T] option to initializeSLiMOptions() to disable checking for infinite loops in Eidos
+	fix #539, crash reading malformed population file
+	fix #535, allow transparency in plots: added [float alpha = 1.0] to Plot methods abline(), lines(), points(), and text() (required to be singleton for lines())
+	fix #547, mutation trajectories plot is confusing in the way it starts collecting data at the time it is opened
+	fix #534, support uniparentally-transmitted chromosomes in hermaphrodite populations
+	add new Plot legendTitleEntry() method for making a title line in a plot legend
+	click-drag in the SLiMgui script view's line number area now drag-selects whole lines
+	fix #550, add filter() function to Eidos, which is essentially a subset of R's filter(): (float)filter(numeric x, float filter, [lif$ outside = F])
+	partial fix for #530, add function (numeric$)tr(numeric x) to obtain the trace of a square matrix
+	partial fix for #530, add function (numeric)outerProduct(numeric x, numeric y) to obtain the outer product of vectors x and y
+	partial fix for #530, add function (numeric$)det(numeric x) to obtain the determinant of a square matrix
+	partial fix for #530, add function (float)inverse(numeric x) to obtain the inverse of a square non-singular matrix
+	partial fix for #530, add function (numeric)matrixPow(numeric x, integer$ power) to raise a matrix to an integer power
+	partial fix for #530, extend cor() and cov() to support correlation/covariance between the columns of a matrix (or matrices), as in R
+		policy change: cov(x, y), cor(x, y), var(x), and sd(x) with x and/or y of length 1 now returns NAN (used to return NULL);
+			this is because you can't make a matrix containing NULLs, and Eidos doesn't have NA (which is what R uses in this case)
+	add Duplicate command to the Edit command, command-D, useful for code editing; change Show Debugging Output to shift-command-D
+	add "Show SLiMgui Color Scales" command to the Help menu in SLiMgui
+	fix #553, an off-by-one bug in initializeRecombinationRateFromFile(); breaks backward compatibility, by fixing this bug
+	add image() method to Plot to add a SpatialMap or Image to a plot: (void)image(object$ image, numeric$ x1, numeric$ x2, numeric$ y1, numeric$ y2, [logical$ flipped = F], [float$ alpha = 1.0])
+	add matrix() method to Plot to add a matrix-based image to a plot: (void)matrix(numeric matrix, numeric$ x1, numeric$ x2, numeric$ y1, numeric$ y2, [logical$ flipped = F], [Nif valueRange = NULL], [Ns$ colors = NULL], [float$ alpha = 1.0])
+	fix #538, check for unique SLiM ids only for alive individuals when loading a tree sequence
+	fix #533, memory smasher in Haplosome method nucleotides(format="char"); besides causing random crashes, this also caused this method to return incorrect results
+	fix #527, add calcLD_D() and calcLD_Rsquared() popgen functions, contributed by Vitor Sudbrack
+	fix apparently new STL check that double comparators for std::sort() must induce a strict weak ordering, including with NAN values; self-tests started raising
+	fix #558, add new ways of subsetting matrices/arrays with A[B], or assigning into subsets of matrices/arrays with A[B] = ... : with a conformable logical matrix/array, or with an integer matrix that selects elements of the target
+	add asVector() method to strip off dimension attributes; this can be done with c() or x[] also, but it's nice to have the function, since R has it...
+	fix #526, add a calcDxy() popgen utility function to SLiM that calculates Nei's Dxy genetic divergence statistic, contributed by Vitor Sudbrack
+	fix #529, extend calcFST() to support multiple chromosomes
+	extend subsetMutations() to support subsetting mutations belonging to more than one chromosome
+	fix #560, add recipe 14.16 "Visualizing linkage disequilibrium" to demonstrate the new calcLD_D() and calcLD_Rsquared() functions
+
+version 5.0 (Eidos version 4.0):
+	multi-chromosome transition:
+	--- main changes to existing APIs:
+			class Genome -> class Haplosome
+			Haplosome class (from Genome class):
+				property genomeType -> removed in favor of `chromosome.type`
+				property isNullGenome -> isNullHaplosome
+				property genomePedigreeID -> haplosomePedigreeID
+				method mutationCountsInGenomes -> mutationCountsInHaplosomes
+				method mutationFrequenciesInGenomes -> mutationFrequenciesInHaplosomes
+			Subpopulation class:
+				property genomes -> haplosomes
+				property genomesNonNull -> haplosomesNonNull
+			Individual class:
+				property genomes -> haplosomes
+				property genomesNonNull -> haplosomesNonNull
+				property genome1 -> haploidGenome1
+				property genome2 -> haploidGenome2
+			Species class:
+				property chromosome: now usable only in single-chromosome models
+				property chromosomeType -> removed in favor of `chromosome.type`
+			MutationType class:
+				property haploidDominanceCoeff -> hemizygousDominanceCoeff (applies only facing a null haplosome, not in "true" haploid chromosomes!)
+			mutation() callbacks:
+				pseudo-parameter genome -> haplosome
+			recombination() callbacks:
+				pseudo-parameter genome1 -> haplosome1
+				pseudo-parameter genome2 -> haplosome2
+			parameter name changes: calcFST(), calcPairHeterozygosity(), calcHeterozygosity(), calcWattersonsTheta(), calcInbreedingLoad(), calcPi(), calcTajimasD()
+			parameter name changes: addEmpty(), addRecombinant()
+	--- main additions to APIs:
+			(object<Chromosome>$)initializeChromosome(integer$ id, [Ni$ length = NULL], [string$ type = "A"], [Ns$ symbol = NULL], [Ns$ name = NULL], [integer$ mutationRuns = 0])
+			initializeSex(): should now allow, and default to, NULL which should be used for all new models; "A" / "X" / "Y" should still be allowed for backward compatibility
+			Haplosome class:
+				property: chromosome => (object<Chromosome>$)
+			Chromosome class:
+				property id => (integer$)
+				property length => (integer$)
+				property type => (string$)
+				property symbol => (string$)
+				property name <-> (string$)
+			Species class:
+				property chromosomes => (object<Chromosome>)
+				property sexChromosomes => (object<Chromosome>)
+				method: (object<Chromosome>)chromosomesOfType(string$ type)
+				method: (object<Chromosome>)chromosomesWithIDs(integer ids)
+				method: (object<Chromosome>)chromosomesWithSymbols(string symbols)
+			Individual class:
+				method: (object<Haplosome>)haplosomesForChromosomes([Niso<Chromosome> chromosomes = NULL], [Ni index = NULL], [logical$ includeNulls = T])
+			Mutation class:
+				property: chromosome => (object<Chromosome>$)
+			Subpopulation class:
+				method: (object<Haplosome>)haplosomesForChromosomes([Niso<Chromosome> chromosomes = NULL], [Ni index = NULL], [logical$ includeNulls = T])
+				method: (object<Individual>)addMultiRecombinant(object<Dictionary>$ pattern, [Nfs$ sex = NULL], [No<Individual>$ parent1 = NULL],
+							[No<Individual>$ parent2 = NULL], [logical$ randomizeStrands = F], [integer$ count = 1], [logical$ defer = F])
+	--- policy changes:
+			policy change: the old "haplosome type" (A/X/Y) in the genome metadata is now a chromosome type (different) in the haplosome metadata
+			policy change: similarly, haplosome type A/X/Y in SLiM output (e.g., outputFull()) is now a chromosome type (different)
+			policy change: initialization order is a bit stricter; initializeSex() with "X" or "Y" must come earlier, before calls that would define an implicit "A" chromosome
+			policy change: the 1D SFS graph and haplotype plot no longer depend upon the current chromosome range selection; that was weird, and doesn't work well in multichrom
+			policy change: the "remove fixed mutations" stage of the WF tick cycle is now after "offspring become parents" (no user-visible difference except WF tick cycle diagram)
+			policy change: mutationRuns= for initializeSLiMOptions() has been changed to [l$ doMutationRunExperiments=T]; pass mutationRuns= to initializeChromosome() instead
+			policy change (slight): the haplosome1Null and haplosome2Null parameters to addEmpty() now apply only to type "A" chromosomes, causing a minor break in backward compatibility
+			policy change: randomizeStrands must now usually be explicitly specified for both addRecombinant() and addMultiRecombinant();
+				the default is now NULL, and NULL errors so that T or F must be explicitly given unless it does not matter (i.e., there is no recombination)
+			policy change: fix #487, changing TSK_SIMPLIFY_KEEP_UNARY to TSK_SIMPLIFY_KEEP_UNARY_IN_INDIVIDUALS for retainCoalescentOnly=F (a change in simplification behavior)
+			policy change: color variables on Individual now exist only under SLiMgui; at the command line there is now no memory backing them, so they cannot be used as scratch space
+	--- tree-sequence recording changes:
+			shift to a tree sequence for each chromosome, sharing the node, individual, and population tables across all tree sequences; new TreeSeqInfo struct for per-chromosome state
+			remembered_haplosomes_ is now remembered_nodes_; it retains nodes that are shared across the tree sequences, and that can represent multiple haplosomes
+			Haplosome no longer keeps its tskit node id; the individual keeps two tskit node ids for first and second position, used across all chromosomes in the shared node table
+			added a list of chromosomes to the top-level metadata (`chromosomes`), changed the top-level schema to describe this (optional) list
+			added a description of the focal chromosome to the top-level metadata (`this_chromosome`), changed the top-level schema to describe this (required) key
+			changed Genome metadata to Haplosome metadata, removed chromosome type, identical for all haplosomes of a given position in an individual
+				the way the is_null flags for haplosomes is handled is completely reworked and rather complex, of necessity; see comments in the code
+			relative to original multichrom design, changed node metadata from `is_null` to `is_vacant` to reflect semantic shift; now it indicates non-null (0) versus unused/null (1); changed schema
+			bumped .trees version number to 0.9
+			treeSeqOutput() writes a single .trees file for single-chromosome models (the existing behavior), but now creates a "trees archive" directory with .trees files inside for multichrom models
+			when saving a trees archive, [l$ overwriteDirectory=F] now controls whether an existing directory that looks like a trees archive will be overwritten (dangerous!)
+	--- input/output formats and methods:
+			the default symbol for implicit chromosomes are "A", "X", or "Y", so output formats don't change for legacy models
+			fix built-in mutation/substitution output methods for multiple chromosomes:
+				Species method outputMutations(): in models with >1 chromosome, this now outputs the chromosome symbol after the position
+				Species method outputFixedMutations(): in models with >1 chromosome, this now outputs the chromosome symbol after the position
+			fix built-in MS input/output methods for multiple chromosomes:
+				Haplosome method outputMS(): check that all haplosomes belong to a single chromosome, output MS based on that
+				Subpopulation method outputMSSample(): add a [Niso<Chromosome>$ chromosome = NULL] parameter to identify the chromosome to sample with
+				Haplosome method readFromMS(): check that all haplosomes belong to a single chromosome, input MS based on that
+			fix built-in SLiM-format partial input/output methods for multiple chromosomes:
+				Haplosome method output(): check that all haplosomes belong to a single chromosome; output the chromosome symbol in the header if multi-chrom
+				Subpopulation method outputSample(): check that all haplosomes belong to a single chromosome
+			fix built-in VCF input/output methods for multiple chromosomes:
+				Haplosome method outputVCF(): check that all haplosomes belong to a single chromosome; pairs haplosomes as appropriate
+				Subpopulation method outputVCFSample(): check that all haplosomes belong to a single chromosome; use chromosome symbols for the CHROM column
+				add [l$ groupAsIndividuals = T] parameter; if F, each haplosome is emitted as a haploid call rather than forming diploids, regardless of the chromosome's ploidy
+				Haplosome_Class::ExecuteMethod_readFromVCF(): require VCF data that is single-chromosome, as with output
+			fix built-in SLiM-format full input/output methods for multiple chromosomes:
+				Species method outputFull(): allow multi-chromosome output with a new sectioned format, for both text and binary
+				Species method readFromPopulationFile(): support reading multi-chromosome output, for both text and binary
+				policy change: readFromPopulationFile() breaks backward compatibility with old file formats, for both text and binary; too much has changed
+			change file format codes for class Haplosome from GS/GM/GV to HS/HM/HV, matching the rename from Genome to Haplosome
+			add support for writing/reading Individual tag values in outputFull(), readFromPopulationFile()
+			add Individual output method +outputIndividuals(), for writing out a sample of individuals in SLiM format with optional metadata
+			add Individual output method +outputIndividualsToVCF(), for writing out a sample of individuals in VCF format with optional metadata
+			add recipe 8.3.6, output from multi-chromosome models
+			add Individual method readIndividualsFromVCF(), allowing reading of multi-chromosome data from VCF into a vector of individuals
+			fix a bug in the neutral-sim tracking logic in readFromVCF() that I don't think anybody ever actually hit (reading a non-neutral mutation for a neutral mutation type)
+			rename the Haplosome method readFromVCF() to readHaplosomesFromVCF(), and readFromMS() to readHaplosomesFromMS(), for naming consistency; add SLiMgui autofix; revise recipe 18.12 for this rename
+			rename Haplosome methods output(), outputMS(), and outputVCF() to outputHaplosomes(), outputHaplosomesToMS(), and outputHaplosomesToVCF(), to parallel the new Individual output methods
+			extend outputFull() to support saving out substitutions, in a table at the end in the same format as outputFixedMutations()
+			change outputFull() individualTags parameter to objectTags, persist tags for individual, mutation, substitution, haplosome, subpopulation, and chromosome
+			extend readFromPopulationFile() to support restoring substitutions and tag values, but only for output in binary format; parsing text is too annoying
+			add [l$ objectTags=F] flag to outputIndividuals(), outputHaplosomes(), outputFixedMutations(), and outputMutations(), mirroring the work done for outputFull()
+	--- other multi-chromosome related changes:
+			add autofixes in SLiMgui for the above API changes
+			revise recipes for new terminology/APIs
+			add multichromosome display to SLiMgui
+			add a "chromosome display" window where you can view all the chromosomes simultaneously
+			improved the accuracy of mutation run experiments, and the quality of the output generated by them, and extended them to be per-chromosome
+			extend subsetMutations() (on Species) to allow the chromosome to also be specified
+			for addSubpop(), haploid=T now requests specifically that type "A" chromosomes be made with their second haplosome null (for haplodiploidy, and backward compatibility)
+			remove the SLiMguiLegacy haplotype plot; it would need to be fixed, and is no longer used by anybody (the one in SLiMgui remains, of course)
+			remove the SLiMguiLegacy chromosome view OpenGL code; again, it would need to be fixed, and maintaining it is an unnecessary headache
+			add templating of GenerateIndividualX() for speed, as was done before for the MungeIndividualX() and HaplosomeX() methods, for speed
+			implement addMultiRecombinant() for complete control over reproduction in multi-chromosome models
+			extend addRecombinant() and addMultiRecombinant() to allow NULL as a breaks vector with two strands, meaning "draw breakpoints for me", to avoid needing drawBreakpoints() in most cases
+				this new code path also allows gene conversion including heteroduplex mismatch repair and gBGC to work with addRecombinant() and addMultiRecombinant()
+				also change to allow a recombination rate to be set for haploid chromosomes; this is potentially useful with addRecombinant() etc.
+			add addPatternForClone(), addPatternForCross(), addPatternForNull(), and addPatternForRecombinant() methods to Species for use with addMultiRecombinant()
+			add recipe 15.22, "Complex multi-chromosome inheritance with addMultiRecombinant()", to illustrate addMultiRecombinant()
+			modified recipes 15.14 and 15.21 to illustrate that NULL can now be passed to addRecombinant() for breaks to get automatic breakpoint generation
+			allow the user to retain Chromosome objects with defineConstant()
+			new PAR (pseudo-autosomal region) recipe for section 15.23, replacing the old recipe in section 14.5 (which will be moved to SLiM-Extras for posterity)
+			new recipe 9.11 (Ne estimation) with a new multichrom-aware version of function estimateNe_Heterozygosity() that requires the chromosome to be supplied
+			recombination() callbacks can now be optionally declared with a chromosome specifier (id or symbol), to apply to just one chromosome
+				registerRecombinationCallback() now takes an optional chromosome parameter to specify that focal chromosome (breaking backward API compatibility)
+			fix up the calc...() functions for multiple chromosomes, and to be robust to the case of zero mutations (existing at all, or within the supplied haplosomes), and to improve error-checking and documentation
+			add a [Niso<Chromosome]$ chromosome] parameter to relatedness(), to allow relatedness to be assessed for any model chromosome; extended to all chromosome types
+			add mutationsFromHaplosomes() method, deprecate uniqueMutationsOfType()
+			optimize mutrun experiment timing for reproduction and fitness calculation in single-chromosome models; no need for per-haplosome timings in that case!
+			accelerate haplosome accessors on Individual: haploidGenome[1|2], haploidGenome[1|2]NonNull, haplosomes, haplosomesNonNull
+	
+	non-multichrom changes:
+		fix the wiring for calcPi() and calcTajimasD() to call the correct code; they were broken in SLiM 4.3
+		add a "page guide at column" pref to SLiMgui, for those trying to lay out code to a maximum width
+		fix a SLiMgui bug where an error panel would not be visible because it was obscured by a floating window above it, appearing to lock up the whole app
+		fixed a long-standing SLiMgui bug involving mutation frequencies and mutation run reuse when a subset of the subpopulations are selected in the GUI
+			as part of this, (1) cleaned up and improved the SLIM_CLEAR_HAPLOSOMES debugging code, (2) separated SLiMgui's refcounting more completely from
+			SLiM's, and (3) fixed unreleased bugs in mutationFrequencies()/mutationCounts()/mutationFrequenciesInHaplosomes()/mutationCountsInHaplosomes()
+		cleaned up the confusion around Dictionary vs. DictionaryBase; methods/functions can now use Dictionary in their signature without problems
+		fix a bug in treeSeqMetadata(); if no metadata was found, it would return object<Dictionary>(0), not an empty Dictionary object (and it leaked)
+		renamed recipe 15.10 to "Recording a pedigree and following a pedigree in a nonWF model" so it is clearer what it does
+		split chapter 15 (nonWF models) into two chapters, involving a great deal of renumbering, reorganizing, and rewriting
+		disable defer=T for all nonWF reproduction methods; it now does the same thing as defer=F (and is documented as having that possibility)
+		add setValuesVectorized() method to EidosDictionaryUnretained, to set values 1:1 from a source vector into dictionary entries of objects; like vectorized property assignment, but for setValue()
+		fix error position tracking for errors inside user-defined functions, and in most nested situations
+		add "absorbing" boundary condition option for deviatePositions(), returning a vector of individuals to be killed because they moved out of bounds
+		add new Subpopulation method deviatePositionsWithMap(), similar to deviatePositions() but adding a spatial map that defines inside/outside bounds
+		disable OpenGL by default on Windows; the user can turn it on in the prefs; just too many people experiencing broken drawing and being confused
+		add a color chart and a plot symbols chart to the SLiMgui Help menu's list of quick-reference charts it can show
+		attempt to fix SLiMgui window visibility issues -- miniaturized windows not becoming visible, off-screen windows remaining offscreen, etc.
+		add calcSFS() function to the popgen utility functions suite, add recipe 9.12 to demonstrate it
+		add recipe 17.19, "Modeling indirect competition mediated by resource availability", demonstrating Sam's resource-explicit approach
+		add calcMeanFroh() function to the popgen utility functions suite, add recipe 14.15 to demonstrate it
+		extend deferred tick scheduling to allow scheduling to occur within a single tick, as long as it is for a later tick cycle stage
+		investigated and diagnosed a break in backward compatibility: models involving the Y use the MT RNG differently (less), and thus diverge from SLiM 4.3
+		add rztpois() function to Eidos, to draw from a zero-truncated Poisson distribution
+		extend initializeGenomicElement() to allow NULL,NULL for start,end, making it very easy to configure a single chromosome-length genomic element
+			tweak recipes 8.3.3, 8.3.4, 8.3.5, 8.3.6, 8.3.7, 16.3, 16.9, and 16.10 to show off this new functionality, since it's now the nicest way to handle this situation
+		add initializeRecombinationRateFromFile() and initializeMutationRateFromFile() built-in functions; tweak recipe 8.2.2 to utilize it
+	bug fixes:
+		fix #481, add a substitutionsOfType() method to Species, parallel to mutationsOfType()
+		fix #473, that tree-seq scripts with a subtle timing error in the addition of a new mutation would not generate a good error message from SLiM
+		fix #488, non-UTF-8 encoding causes poor error
+		fix #476, external editing causes SLiMgui to get confused
+		fix #479, CLI progress bar would be a nice option; this is now -p[rogress]
+		fix #478, record resource usage information in the tree sequence provenance; now we also print user/sys CPU usage for -t[ime], since we now have the information
+		fix #494, adding a -c / -check command-line option to check the syntax of the input script
+		fix #496, calling addCustomColumn() or addMeanSDColumns() inside a for loop passing the loop index variable for custom= does bad things
+			also, we now require an object value for the context parameter to belong to a class that is under retain-release, since this is a long-term reference and could cause a crash otherwise
+		fix a bug with reloading pedigree IDs after outputFull(), using readFromPopulationFile()
+
+version 4.3 (Eidos version 3.3):
+	fixed a bug in calcWattersonsTheta(): the value calculated would be incorrect if a window (start/end) was specified
+	added TOC I and TOC II to the PDF index of the SLiM manual; removed the bottom-of-page links section, which made search difficult
+	add subpopulationsWithNames() method to Community, to facilitate being able to use user-defined names for subpops
+	fix bugs in some graphs in SLiMgui that could cause incorrect display or a crash in various circumstances
+	send debug output to the main window as well as the debug output tab, to avoid important messages getting lost
+	add a label next to the Jump button that shows the declaration of the script block containing the selection; clicking it runs the Jump menu
+	sort recipes by correct numerical order, in both the Recipes menu and the Find Recipe panel, on all platforms
+	update Robin Hood Hashing to 3.11.5 to get some minor fixes
+	update zlib from 1.2.13 to 1.3.1 to get some minor fixes
+	some fixes under the hood to make filesystem paths on Windows, using \ instead of /, be better understood by Eidos
+	fix an occasional crash in sampleIndividuals() due to an off-by-one error in buffer sizing
+	further extend tick range expressions, for scheduling events/callbacks, to allow the use of constants that are not defined until later in a run (variable-length burn-in, etc.)
+		add recipe 17.6 II, to illustrate this new capability
+	improve recording of subpopulations in the tree-sequence recording population table (#447)
+	add calcPi() and calcTajimasD() functions thanks to Nick Bailey
+	extend deviatePositions(), pointDeviated(), sampleNearbyPoint(), and sampleImprovedNearbyPoint() to allow vectorization with a different spatial kernel for each iteration
+	fix a line-ending bug in readFile(); a CRLF file from Windows, read on macOS/Linux, would not strip the CR off the ends of the lines
+	shift to supporting Qt6 and C++17 to build SLiMgui; Qt5 with C++11 is still supported
+		for macOS, Qt6 is now the supported platform for macOS 11/12/13/14; Qt5 should only be used on macOS 10.15
+		for Windows, Qt6 is now the supported platform for Windows 10 (1809 or later) and Windows 11
+		for Linux, Qt6 is now the supported platform for Red Hat 8.6/8.8/9.2, openSUSE 15.5, and Ubuntu 22.04 among others
+		these recommendations are based on Qt6's recommended platforms; earlier platforms should use Qt5
+		for more details see https://doc.qt.io/qt-6/linux.html, https://doc.qt.io/qt-6/windows.html, https://doc.qt.io/qt-6/macos.html
+		building with CMake will now default to Qt6 if CMake can find it, and fall back to Qt5 otherwise; should be automatic
+	add a "Use OpenGL for fast display" checkbox in the Preferences panel, making it possible to disable OpenGL when it doesn't work well (#462)
+	add genomicElementForPosition() and hasGenomicElementForPosition() methods on Chromosome
+	policy change: genomicElements property is now in sorted order (not in order of declaration)
+	add a "Copy as HTML" command to copy script with syntax coloring and such
+
+version 4.2.2 (Eidos version 3.2.2):
+	fix SLiMgui crash with code completion
+	fix spurious VCF reading error (number of calls not equal to number of samples) due to incorrect usage of eof()
+
+version 4.2.1 (Eidos version 3.2.1):
+	fix an issue in Linux release/installer builds with FORTIFY_SOURCE=3 (resulting in a "buffer overflow" error in self-test and in treeSeqOutput())
+	fix a crash in BorrowShuffleBuffer(), introduced debugging a different problem; occurs when (a) a nonWF model has (b) a subpop of size 0 (c) at reproduction() time (d) before ever having a non-zero size
+
+version 4.2 (Eidos version 3.2):
+	fix for #418, a crash involving null genomes in nonWF (has_null_genomes_ was not set correctly by addCloned() or takeMigrants() when putting a null genome into a subpop that previously had none)
+	big changes to Eidos under the hood - removal of the singleton/vector distinction and EidosValue subclasses, add constness flag, differentiate casting vs. non-casting accesses, etc.
+	policy change: float indices are no longer legal for subsetting, indices must be integer (or a logical vector, as usual); this was inherited from R and is a bad idea for Eidos
+	policy change: assignment into object properties must match the type of the property; no more promotion to integer/float from lower types
+	add some internal magic to accelerate statements of the form "x = c(x,y)" by appending y onto the end of x directly
+	optimize mapValue() / spatialMapValue() - 6x speedup for large-point-vector 2D case, with spatial bounds [0,1] in both dimensions, and no interpolation
+	optimize strength() and interactionDistance() in the case where exerters != NULL; had a very bad algorithm, now O(N) instead of O(NM) where N is # exerters, M is # interactors for the focal receiver
+	broaden the for loop syntax in Eidos to allow multiple 'in' clauses, such as "for (i in 1:5, j in 6:10) ..."
+		as a side effect, for loop index variables are now constants until the loop has finished
+		to demonstrate the new syntax, recipes 10.5, 14.7, and 19.7 have been modified to use it
+	fix #422: readFromPopulationFile() for .trees files in SLiM 4.1 hits a MUCH higher peak memory usage in some cases, due to over-copying of mutation runs
+	add deviatePositions() method to Subpopulation for even faster offspring positioning than with pointDeviated(); revise recipes 16.3 and 16.8 to use it
+	add basic custom plotting capabilities to SLiMgui, through the slimgui object, with new methods createPlot(), lines(), points(), and text(); revise recipes 13.5 and 14.7 to demonstrate this capability
+	add SLiMgui plotting of data from LogFile output, through a context menu in the debug output window; revise recipes 4.2.5 and 15.16 (text only, not code) to demonstrate this capability
+	split out the new plotting functionality into a new class, Plot, available only in SLiMgui
+	add support for legends in the SLiMgui plotting code with addLegend(), legendLineEntry(), legendPointEntry(), and legendSwatchEntry()
+	add logFileData() method to the SLiMgui class to allow access to logged data, which is useful for live plotting in SLiMgui
+	convert recipe 15.17 over to SLiMgui live plotting, to illustrate addLegend(), logFileData(), abline(), etc.
+	add new serialize() mode, "pretty", for pretty-printed Dictionary output
+	improvements to axis scaling, tick labels, axis labels, data range, etc., with some impact on built-in plots, but mostly for custom plots at this point
+	add axis() method to Plot, for fine-scale control over axis tick marks and labels
+	split the "squashed stabilizing selection" recipe out from section 13.6 to make a new section 13.7, utilizing lots of live SLiMgui plotting for advanced visualization
+	add support for external editors (#423): changes made externally will now result in a panel offering to reload from disk, or (if a pref is set) automatic reloading as long as there is no conflict
+	add multispecies tick cycle diagrams to the Help menu in QtSLiM
+	fix Sachin's scoped assignment bug (#430): x=x+1 would do the wrong thing in a local scope where x is defined as a global variable; it would increment the global instead of making a new local
+	extend SLiM script parsing to allow expressions for event/callback timing, evaluated at the end of initialize() callbacks; these may depend upon global constants, and even call functions
+		events and callbacks may now be scheduled for a non-consecutive set of ticks, not just a range; for example, seq() or c() may be used to construct the times at which a script block runs
+		as a part of this work, rescheduleScriptBlock() no longer makes copies of the script block when non-consecutive ticks are requested; a single script block can now be scheduled non-consecutively
+		update recipe 17.4 to use this new facility instead of rescheduleScriptBlock(), and add recipe 4.1.10 demonstrating defining constants for parameters and using them for tick scheduling; also update manual sections 20.2 and 26.1 for this
+	make the Dictionary constructor allow a non-singleton string vector, so the (JSON) result of readFile() can be passed directly to it
+	revised recipes 16.6, 16.7, 16.8, 16.9, 16.10, and 16.11 to use new APIs and conventions (mapValue(), mapColor(), uppercasing defined constants)
+	require the symbol name passed to defineConstant() / defineGlobal() to be a valid Eidos identifier
+	fix a bug that would cause failures to write buffered compressed data from writeFile(), only in SLiMgui; these failures were not reported to the user well (only through SLiMgui's stderr)
+	recipe 14.7 is a ground-up rewrite, to show the utility of using marker mutations to track true local ancestry, including live plotting in SLiMgui
+	add estimatedLastTick() method to Community; useful for custom plotting where you want to know the span of the model up front, to set an axis range, for example
+	adjusted recipe 5.3.1 to use zero-based subpopulation ids, simplifying the logic; the workshop uses this recipe and it was a common source of confusion
+	
+version 4.1 (Eidos version 3.1):
+	fix a minor bug with autofix when opening multiple .slim documents at once in SLiMgui
+	fix recipe 17.10 to set the time unit, to avoid the timescale warning from tskit
+	add "-fno-math-errno" in Other C++ Flags to improve performance and help with SIMD vectorization; not set for C, only C++, so this does not affect the GSL
+		errno is presently used in C++ only with functions that are not affected by -fno-math-errno, like chdir() and strtoll() and such, so there is no sacrifice here at all
+	split reproduction in nonWF models into a two-stage process of reproduction for all species, then merging for all species, to allow multispecies interactions to be used; no consequence for single-species models
+	add a new build flag: if -D BUILD_NATIVE=ON is set, -march=native is passed to the compiler and a native build, usable only on the build machine itself, is produced for better optimization
+	add a new build flag: if -D BUILD_LTO=ON is set, link-time optimization is enabled (if the compilers say they support it), for better optimization; if the build then fails, don't use it
+	fix a major performance issue for nearestNeighbors(), nearestNeighborsOfPoint(), and subsetIndividuals() with very large subpopulation size
+	memory usage debugging improvements: add a "vm" option to the usage() function, add a usage() method to Community
+	switch from Quickselect to std::nth_element() for choosing medians when building the k-d tree; might break backward reproducibility in some edge cases
+	improve performance of reading text SLiM-format population files, as produced by outputFull()
+	move minimum system requirement up to 10.13 (the oldest SDK supported by Xcode 14.2); the command-line tools should still run on older systems
+	clean up some old usage that is now flagged by Xcode (sprintf to snprintf, deprecated Cocoa API, old build-numbering scripts in the project)
+	advance copyrights to 2023
+	add the ability to generate profiles at the command line as well as in SLiMgui, making it possible to profile SLiM when running parallel
+		to turn this on in CMake, add "-DPROFILE=ON" to the CMake command line
+		to turn this on in Xcode, set "-DSLIMPROFILING=1" in "Other C Flags" in each target you want to enable it in (not at the project level!)
+	extend the Eidos Dictionary class (but not DataFrame) to allow integer keys, making it more of a general "associative array" class that can represent ragged arrays and similar structures
+		as a side effect, "slim" type dictionary serialization now *always* quotes string keys (policy change), to distinguish, e.g., "10" (string) from 10 (integer) in serialized output
+	extend the Eidos Dictionary class (and DataFrame) to allow objects of all classes to be added; dictionaries containing objects that are not under retain-release just can't be kept long-term
+	improve InteractionType performance for certain queries, especially drawByStrength() with fixed interaction strength
+	bug fix: drawByStrength() would return at most N individuals, where N is the size of the exerter subpop; but this is incorrect since draws are with replacement
+	bug fix: neighborCount() and interactingNeighborCount() would return float(0) instead of integer(0) in certain circumstances, totalOfNeighborStrengths() would return integer(0) instead of float(0)
+	add recipe 14.16, "modeling biallelic loci in script" (complementing recipes 14.15 I and 14.15 II, which show how to do it with built-in mutations and a mutation() callback)
+	disallow multiple log files at the same path, since this is a common mistake and there's no clear use for it
+	bug fix: problem with reading in JSON that contains an "object" (i.e., a dictionary) inside the top-level object
+	update the zlib code in eidos_zlib to version 1.2.13 (13 Oct 2022), fixing some issues (see zlib ChangeLog file)
+	change to DWARF, not DWARF with dSYM, even for Release builds; I don't use the dSYM file to reverse-symbolicate crash reports, so it just slows down my Release builds (but turning it off is unusual, so I'm noting it here)
+	add an optimized case for sample() with replacement, when using a weights vector; orders of magnitude speedup for large tasks
+	shift GitHub Actions for macOS to macos-11 and macos-12; macos-10.15 stopped working in early May 2023, deprecated
+	add an optional parameter to initializeGeneConversion(), [l$ redrawLengthsOnFailure = F], to avoid failures to lay out tracts in some models; no behavior change by default
+	add an optional parameter, [integer$ count = 1], to addCrossed(), addSelfed(), addCloned(), addRecombinant(), and addEmpty() to produce multiple offspring in one call
+		this entails a policy change: if no children are generated (due to rejection by modifyChild(), in particular), object<Individual>(0) is returned, not NULL
+	add a method -(integer)compactIndices(void) to Dictionary, to compact result dictionaries down to their non-empty values with sequential keys
+	add a new recipe, 17.11, on changing the tree-sequence simplification interval
+	fix a bug with the Species methods mutationCounts() / mutationFrequences(), only for multispecies models; counts/frequencies would be zero for some species
+		this did not occur when running under SLiMgui (different code path), but always happened at the command line
+	add rank() function to Eidos (https://github.com/MesserLab/SLiM/issues/379); identical to R except that logical and string are not supported, and "random" is not supported; can be added later as needed
+	bug fix: #361, more than 2 billion mutations overflows without a good error message
+	bug fix: #365, problems loading a tree sequence; what I fixed is to catch the uncaught raise from std::stoll() in Species::DerivedStatesFromAscii()
+	bug fix in pyslim to announce: https://github.com/tskit-dev/pyslim/issues/307
+	feature request: #378, add font bigger (command +) and font smaller (command -) menu items and shortcuts, so the user doesn't have to open the prefs window; note that with command = the shift key is needed
+		this meant removal of the shortcuts for prettyprint script and reformat script, since they conflicted (well, prettyprint conflicted); probably nobody cares
+	revised recipe 17.3 to show how to persist tag values from a simulation in the tree-sequence metadata
+	add five logical tag properties to Individual, tagL0 - tagL4, to hold user-defined values of type logical
+	add parent1 and parent2 parameters to addRecombinant() so that parental pedigreeIDs can be tracked properly if desired
+	add sharedParentCount() method, a simplified version of relatedness() using only parent pedigree IDs to find full sibs (2) and haf-sibs (1)
+	split SpatialMap out into its own Eidos class
+		make -defineSpatialMap() return an o<SpatialMap>$ object that can be used independently
+		make SpatialMap know the spatial bounds that it is aligned to; all uses of a given SpatialMap must use the same spatial bounds!  if a subpop changes its bounds, it checks the bounds of the spatial maps it is using
+		make SpatialMap know its name; it is now an intrinsic property of the map, used primarily for SLiMgui display, and must be unique within each subpopulation
+		add a constructor for SpatialMap that duplicates the spatial map object, with a new name
+		allow a given SpatialMap to be retained long-term (e.g., with defineConstant() / defineGlobal())
+		allow a given SpatialMap to be set on more than one subpopulation, with a new method addSpatialMap(); also removeSpatialMap() to take one out, and a spatialMaps property to get the maps currently on a subpop
+		add utility methods directly on SpatialMap for the things subpop already does – mapValue(), mapColor(), mapImage() – and deprecate the Subpopulation APIs (except spatialMapValue(), which remains useful and undeprecated, and can now take a SpatialMap object)
+		add a changeValues() method on SpatialMap to change the grid values of an existing spatial map
+		add various properties on SpatialMap: gridDimensions, interpolate, name, spatialBounds, spatiality, tag
+	add interpolate() to SpatialMap, to increase the resolution of a spatial map by interpolating new values
+	add smooth() to SpatialMap, to smooth/blur a map; internally, add the SpatialKernel class (not user-visible)
+	add add(), multiply(), subtract(), divide(), power(), exp(), range(), and gridValues() methods to SpatialMap
+	add sampleNearbyPoint() and sampleImprovedNearbyPoint() to SpatialMap, for searching habitat and such
+	add a t-distribution option for SpatialKernel, to provide a fat-tailed distribution that behaves better than Cauchy
+	add a Subpopulation method pointDeviated() that can deviate points using a kernel and enforce boundary conditions in one call
+	tweak WF reproduction, addCrossed(), addSelfed(), addCloned(), and addRecombinant() to give the new offspring the same spatial position as the first parent, allowing efficient positioning with pointDeviated() in the typical usage case
+	policy change: type 'f' kernels now require a finite maxDistance, since the alternative doesn't really make sense (note that type 'l' already required a finite maxDistance)
+	new option in the Individuals view for spatial models, to display the underlying grid points of the spatial map
+	add changeColors(), blend(), and rescale() methods to SpatialMap; extend changeValues() so it can take a SpatialMap as its parameter
+	add Laplace DFE for MutationType, type "p"; contributed by Nick O'Brien
+	extend sampleIndividuals() and subsetIndividuals() to support constraining by tagL0 - tagL4
+		policy change: if tag is specified (non-NULL), the tag property must now have a defined value on all individuals; previously this was not checked, and individuals with an undefined tag value were simply excluded
+	add [logical$ randomizeStrands = F] flag to addRecombinant; if T, strand1/strand2 and strand3/strand4 will be randomized for each offspring generated
+	add InteractionType method setConstraints(), generalizing sex-specificity with a whole raft of other possible constraints on receivers and/or exerters; interally, now keep two k-d trees, one constrained, one not
+		fixed a bug in passing: drawByStrength() and nearestInteractingNeighbors() were not applying sex-specificity to receivers, for the returnDict=T case (never released publicly)
+		fixed a bug in passing: partial sex-specificity (receivers but not exerters, or exerters but not receivers) was not applied flexibly in multispecies models where one species is sexual and one is not
+	implement 2D bicubic interpolation with periodic boundaries for the interpolate() method
+	update from tskit C_1.0 to C_1.1.2, fixing a memory leak on load of a .trees file, and presumably other things also
+	add testConstraints() method to InteractionType, to test whether a set of individuals satisfy constraints or not
+	add clang-tidy support in CMake (for internal development), do a pass over eidos and core
+	add/modify recipes for new spatial modeling features: new 15.3 V on pointDeviated(); new 15.14 on SpatialMap, interpolate(), smooth(), and sampleNearbyPoint(); new 16.12 on interaction constraints and other stuff
+	modify recipes to demonstrate the use of tagL0: 10.4.2, 12.1, 12.5, 14.2 II, 16.17, 16.24
+	modify recipes that use addRecombinant() to use randomizeStrands=T where appropriate: 16.17, 16.25
+	add lowerTri(), upperTri(), and diag(); thanks to Nick O'Brien (@nobrien97) for this contribution
+	modify recipes to use count= parameter to addCrossed() etc., where appropriate: 16.3, 16.23
+	add xy, xz, yz, and xyz properties to Individual that allow joint access to the x/y/z properties, for easier spatiality operations in complex spatial models (and to support some unit testing additions)
+	fixed a variety of memory leaks and extended the unit testing for leaks considerably; should be pretty clean in its memory usage now
+	switch chapters 15 and 16 (nonWF and spatial models) and reorganize/renumber to rationalize the manual organization; many recipe numbers changed
+	speed up findInterval() by using binary search instead of linear search - O(log n) instead of O(n) to find the interval for one element, with n being the number of intervals (i.e., the length of vec)
+
+version 4.0.1 (Eidos version 3.0.1):
+	fix the documentation for the timeUnit parameter of initializeTreeSeq(), which had not been updated for SLiM 4's policy change that the default is now "ticks" in all cases
+	fix a bug that would bite tree-seq models that reloaded with readFromPopulationFile(); such models could trigger an internal error, or leak memory
+	fix LogFile bug with an absolute filesystem path on Windows
+	fix error incorrectly raised for treeSeqRememberIndividuals() with a zero-length individuals vector
+	fix the error position reported for assignment into a non-existent property; this fixes a bug in SLiMgui's autofix feature, as a side effect (with, e.g., "sim.generation = 5")
+	revise recipe 6.1.2 (reading a recombination map from a file) to use readCSV() instead of readFile()
+	extend the subset() method of DataFrame to accept NULL for rows/cols, to take entire columns or entire rows respectively, for usability
+	extend readCSV() to allow sep="", meaning that the separator is "whitespace", as in R
+	add a stringRepresentation() method on Object, to provide the same string representation printed by print()
+	improve memory usage for Individual, down to 192 bytes from 232 bytes, by compactifying the color information for SLiMgui and rearranging ivars to minimize wasted space
+	the color property on Individual no longer guarantees that the value read equals the value set; when a color is set, it is now converted to RGB, so named colors do not round-trip
+	add a meanParentAge property, to make calculating generation length simpler; unavailable in WF models (like age), 0 for parentless individuals
+	add DataFrame asMatrix() method to convert a DataFrame into a matrix, if all columns are the same type/class
+	modify recipe 16.12 II to use asMatrix() to read the mating and death files more elegantly
+
+version 4.0 (Eidos version 3.0):
+	fix deprecated pyslim API issues in recipes 17.2, 17.4, 17.5, 17.7, 17.8, 17.10, 18.13:
+		use tskit.load() instead of pyslim.load(), pyslim.recapitate() instead of ts.recapitate(), ts.metadata['SLiM']['generation'] instead of ts.slim_generation
+	add a second recipe to section 16.19 (range expansion in a stepping-stone model), showing how to solve the same migration problem with a survival() callback
+	fix a crash (rather than an error) when calling removeMutations() on a null genome in some situations
+	split SLiMSim into two new classes: Species and Community
+	moved to Community: properties logFiles, generationStage, verbosity; it also has properties tick and tag
+	moved to Community: methods createLogFile(), register[X]Event(), deregisterScriptBlock(), rescheduleScriptBlock(), outputUsage(); also has its own simulationFinished()
+	change generations to ticks across almost all APIs; the basic unit of time is now called a tick, "generation" is a species-specific concept
+	remove the inSLiMgui property of SLiMSim (deprecated since SLiM 3.2.1)
+	remove vestiges of the xDominanceCoeff parameter to initializeSex() and the dominanceCoeffX property of SLiMSim (removed originally in SLiM 3.7)
+	change GO (generation of origin) to TO (tick of origin) in VCF output (should be able to read both annotations)
+	addNewMutation() and addNewDrawnMutation() have had their originGeneration parameter removed (first made redundant in SLiM 3.5)
+	originGeneration property of Mutation and Substitution renamed to originTick; fixationGeneration property of Substitution renamed to fixationTick
+	generation parameter to recalculateFitness() renamed to tick
+	generations parameter to rescheduleScriptBlock() renamed to ticks
+	new addTick() method added to LogFile
+	new output formats include both the tick and cycle, for outputFull(), outputMutations(), outputFixedMutations()
+	top-level tree-sequence metadata produced by outputTreeSeq() now includes both the tick ("tick") and generation ("generation")
+	tree-sequence metadata for mutations has changed the sense of "slim_time" to be in ticks, not generations
+	tree-sequence metadata for individuals has changed the sense of "SLIM_INDIVIDUAL_METADATA_MIGRATED" to indicate migration in the last tick, not the last generation
+	add Generation textfield below the Tick textfield in SLiMgui & SLiMguiLegacy
+	add name and description properties to Species; these are the species name as declared in script and a user-controlled description string; they get persisted in tree-seq top-level metadata
+	increment the tree-seq file version from 0.7 to 0.8
+	increment version to 4.0 - usually this is not done until it's time to roll the release, but since we're on a branch, it is useful for testing purposes
+	LogFile methods addGeneration(), addPopulationSexRatio(), and addPopulationSize() now take [No<Species>$ species = NULL]; if not supplied, it will default to a singleton species if possible
+	Species now supports simulationFinished(), but only in the single-species case; in multispecies models call community.simulationFinished() instead
+	make "early()" required; the default block type has been a source of confusion and is worse now with the multispecies syntax
+	add optional "species <identifier>" and "ticks <identifier>" syntax to the SLiM top-level syntax to modify block declarations
+	make the Object Tables window in SLiMgui display all objects, across all species
+	add initializeSpecies() function to set species-specific options in explicit-species models: [i$ tickModulo = 1], [i$ tickPhase = 1], and [Ns$ avatar = NULL], for now
+	SLiMgui now displays avatars in the Object Tables window
+	add allSpecies, allGenomicElementTypes, allInteractionTypes, allMutationTypes, allScriptBlocks, allSubpopulations properties to Community
+	graph windows (and haplotype plots) are now associated with the focal species at their time of creation, and display the species avatar as a badge
+	add a species "tab bar" in SLiMguiLegacy and QtSLiM to choose which species is the focal display species (population view, chromosome view, new graph windows)
+	add id property to Species
+	add lookup by id on Community for subpopulations, mutation types, genomic element types, interaction types, script blocks, and species with xWithIDs() methods
+	add species property to Chromosome, GenomicElementType, InteractionType, MutationType, Subpopulation
+	add active property and skipTick() method to Species, start using ticksModulo/ticksPhase to actually control species activation
+	add 'all' as a reserved species name, add the 'ticks all' syntax for event declarations and make it required in explicit-species models
+	add [No<Species>$ ticksSpec = NULL] to registerXEvent() so created event blocks can have a ticks specifier; add speciesSpec and tickSpec properties to SLiMEidosBlock
+	documentation/manual revisions for all of the above
+	remove now-obsolete pseudo-parameters from callbacks (breaking backward compatibility in 4.0; not really multispecies-related):
+		fitness(), reproduction(), mateChoice(): removed genome1, genome2 (kept these in recombination() callbacks since they are not redundant, indicating the initial copy strand)
+		modifyChild(): removed childGenome1, childGenome2, childIsFemale, parent1Genome1, parent1Genome2, parent2Genome1, parent2Genome2
+		revised recipes in reaction to these changes: 10.3.1 I/II, 11.3, 12.2 I/II, 12.3, 13.1, 14.5, 16.13, 16.14, 16.16, 16.17, 18.8
+	add WF/nonWF generation cycle images to QtSLiM, under the Help menu, for quick reference
+	add a findInterval() function to Eidos
+	change calcFST() from "average of ratios" to "ratio of averages", following current best practice; this breaks backward compatibility for users of this function, but hopefully in a good way
+	add autocorrect smarts to SLiMgui for common changes needed to migrate to SLiM 4
+	switch InteractionType from using a semi-permanent sparse array to using a transient sparse vector, providing multispecies flexibility:
+		add "species all initialize()" for non-species-specific initialization, move initializeInteractionType() to be non-species-specific, remove the `species` property from InteractionType
+		make it required, in multispecies models, to declare interaction() callbacks as "species all interaction()"; they are always active, and are not associated with any one species
+		move registerInteractionCallback() from Species to Community, since interaction() callbacks are now non-species-specific
+		change InteractionType APIs to be more explicit about receiver vs. exerter, allow an exerter subpop to be specified, etc.; new APIs:
+			– (float)clippedIntegral(No<Individual> receivers) - note this method now uses saved positions from evaluate(), and thus requires evaluation
+			– (float)distance(object<Individual>$ receiver, [No<Individual> exerters = NULL]) - receiver must now be singleton (matching interactionDistance())
+			– (float)distanceFromPoint(float point, object<Individual> exerters) - renamed from distanceToPoint(), parameters switched places for consistency
+			– (object<Individual>)drawByStrength(object<Individual>$ receiver, [integer$ count = 1], [No<Subpopulation>$ exerterSubpop = NULL]) - "receiver", added exerterSubpop
+			– (integer)interactingNeighborCount(object<Individual> receivers, [No<Subpopulation>$ exerterSubpop = NULL]) - changed individuals to receivers, added exerterSubpop, require all receivers in one subpop
+			– (float)interactionDistance(object<Individual>$ receiver, [No<Individual> exerters = NULL]) - no change
+			– (float)localPopulationDensity(object<Individual> receivers, [No<Subpopulation>$ exerterSubpop = NULL]) - added exerterSubpop
+			– (object<Individual>)nearestInteractingNeighbors(object<Individual>$ receiver, [integer$ count = 1], [No<Subpopulation>$ exerterSubpop = NULL]) - "receiver", added exerterSubpop
+			– (object<Individual>)nearestNeighbors(object<Individual>$ receiver, [integer$ count = 1], [No<Subpopulation>$ exerterSubpop = NULL]) - renamed individual to receiver, added exerterSubpop
+			– (object<Individual>)nearestNeighborsOfPoint(float point, io<Subpopulation>$ exerterSubpop, [integer$ count = 1]) - parameters switched
+			– (float)strength(object<Individual>$ receiver, [No<Individual> exerters = NULL]) - no change
+			– (float)totalOfNeighborStrengths(object<Individual> receivers, [No<Subpopulation>$ exerterSubpop = NULL]) - added exerterSubpop
+		change InteractionType::evaluate() API: (void)evaluate(io<Subpopulation> subpops) - `subpops` now required, remove `immediate`
+		remove the `subpop` pseudo-parameter from interaction() callbacks; receiver.subpop and exerter.subpop should now be used, and are not always the same
+		revised recipes for these changes (for evaluate() now requiring subpops, in all cases; no other changes needed): 15.2, 15.3 I/II/III/IV, 15.4, 15.5, 15.6, 15.7, 15.8, 15.9, 15.10, 15.11, 15.12, 16.10, 16.11, 16.18
+		note that these changes break backward compatibility for most models, and break backward reproducibility for many (due to distances not being rounded off from double to float in some code paths now)
+	move initializeSLiMModelType() to be non-species-specific (i.e., must be in "species all initialize()"), so it is shared and doesn't need to be repeated
+	add parameter color to initializeSpecies(), and property color to Species; add property avatar to Species; tweak avatar to be [s$=""] not [Ns$=NULL], the empty string can be the default
+	add "Multispecies Population Size ~ Time" graph to SLiMgui
+	shift initialization requirements to allow "no-genetics" species to omit all of their genetic setup (mutation and recombination rates, mutation types, genomic element types, genomic elements)
+	obsolete the term "generation" in favor of "cycle", "generation cycle" in favor of "tick cycle"; user-visible API changes:
+		Species.generation -> .cycle, Community.generationStage -> .cycleStage
+		change the "generation" metadata key in the tree sequence top-level scheme to "cycle"
+		LogFile.addGeneration() -> .addCycle(), LogFile.addGenerationStage() -> .addCycleStage()
+		change the column names produced by LogFile from "generation" and "gen_stage" to "cycle" and "cycle_stage"
+		revise recipes to use the new properties and methods, have correct comments, etc.
+	add recipes 19.1, 19.2, 19.3, 19.4, 19.5, 19.6, 19.7: new multispecies recipes!
+	add neighborCount() and neighborCountOfPoint() methods to fill out the InteractionType API
+	modify recipe 18.14 to unique down nucleotide-based mutations regardless of their mutation type (mutation() rather than mutation(m1))
+	add recipe 18.15, showing how to unique down to the ancestral state when that is desirable
+	add an "all" tab to the species bar, to see all species simultaneously in the UI
+	add a [No$ subpopMap = NULL] parameter to readFromPopulationFile() to allow remapping of subpopulation ids on load, for .trees
+	add a "Scheduling" tab in the output viewer that shows tick/cycle/event/callback scheduling in chronological order
+	relax the prohibition on calling cachedFitness() from late() in a WF model; it is now allowed IF recalculateFitness() has been called first
+	fix a bug that caused malformed metadata for (a) models where a subpop was removed, when (b) those subpops had a larger SLiM id than other subpops (and were thus at the end of the population table)
+	optimizations for several cases of sample() and sampleIndividuals() in the case of multiple draws without replacement
+	add calcInbreedingLoad() function, courtesy of Chris Kyriazis
+	add [logical$ randomizeCallbacks = T] to initializeSLiMOptions() to turn of randomization of the order individuals are processed with callbacks; T by default, breaks backward reproducibility unless set to F
+	add new section 14.15 recipes: biallelic models showing how to use mutation() callbacks, unique down, and handle back-mutation
+	add "Focus on Script" and "Focus on Console" keyboard shortcuts for keyboard warriors
+	revise Python recipes to match current usage: 17.2, 17.4 II, 17.5 II, 17.7 II, 17.8 I, 17.8 III, 17.9 I, 17.10 II, 18.13 III
+	add species color lines in the script editor in SLiMgui, in multispecies mode
+	relax call timing restrictions to allow species to operate upon each other within callbacks more broadly
+	add recipe 19.8: Within-host reproduction in a host–pathogen model
+	remove the `active` property of Species, at least for now; I decided that the existence of this might paint me into a corner with respect to possible extensions to the skipTick() mechanism
+	merge in tskit C API 1.0 final
+	relax unnecessary restrictions on reading, writing, addSubpop(), addSubpopSplit(), treeSeqRememberIndividuals(), treeSeqSimplify(), etc. being done in first() events
+	add willAutolog() method to LogFile to find out whether it will log automatically at the end of the current tick
+	add addSuppliedColumn() and setSuppliedValue() methods to LogFile, to support columns that are supplied their value by script, rather than generating them
+	remove the removeConstants parameter from rm(); it is no longer possible to remove defined constants, use defineGlobal() instead if you want to change a global value
+	add killIndividuals() method on Species, for nonWF models only, to kill a given vector of individuals, immediately removing them from their subpopulations
+	bug fix: add mutation frequency/count invalidation in more spots: addSubpop()/addSubpopSplit(), setSubpopulationSize(0) (WF), removeSubpopulation(), killIndividuals(), takeMigrants()
+		the results from sim.mutationFrequencies() / sim.mutationCounts() could be incorrect after one of those calls, for a complete tick cycle (test: test_freqCountChange_*.slim)
+		SLiM's internal tally never produced incorrect fixation/loss, so the bug should manifest only in script, only when those methods are used (test: test_fixloss_*.slim)
+		it could also result in (harmless) incorrect display of frequencies in SLiMgui at the end of a tick in which a subpopulation was removed (test: test_subpopRemoved_*.slim)
+	fitness() callback redesign (breaks in backward compatibility):
+		change fitness() callbacks to be called mutationEffect() callbacks
+		change relFitness to effect, inside mutationEffect() callbacks
+		change fitness(NULL) callbacks to be called fitnessEffect() callbacks
+		split registerFitnessCallback() into registerMutationEffectCallback() and registerFitnessEffectCallback()
+	add display of the Git SHA-1 hash in slim and SLiMgui, to aid in debugging; works for builds under cmake and qmake, not under Xcode
+	add a "progress indicator" in SLiMgui, in the Tick counter lineedit, that shows the progress towards the last tick the model will execute (assuming it doesn't stop early)
+	shift recipes 16.5, 16.19, and 19.8 to use killIndividuals(), for pedagogical purposes
+
+version 3.7.1 (Eidos version 2.7.1):
+	fix a problem with the python recipe for recipe 18.13
+	fix printf format specifier on Windows that was causing issues with old compilers on conda
+	fix spurious "subpopulation p0 has already been used" errors in certain circumstances (#274), which was biting stdpopsim
+	fix a crashing bug with treeSeqOutput() due to an incorrectly sized malloc buffer
+	get rid of a spurious self-test error that happened occasionally due to changed to relatedness(); the test itself was wrong (#269)
+	fix the appearance of SLiMgui profile output when in dark mode (#270)
+	advance copyrights to 2022
+	fix recipes 17.8 and 17.9 to use sim_ancestry() instead of simulate()
+
+version 3.7 (Eidos version 2.7)
+	change to allow .trees files to contain unreferenced empty subpops, to allow ancestral use of subpops that are now empty (see #168)
+	disallow reuse of subpopulation ids if they have gone into the tree-sequence tables, to prevent collisions
+	change so that entries for unused subpops are not modified in population tables loaded from a tree sequence (PR #172)
+	add a [format='slim'] parameter to Dictionary.serialize(), adding support for JSON serialization with the 'json' format specifier (note the JSON serialization format changed slightly due to bug fixes)
+	add a Dictionary(string$ jsonString) constructor for creating a Dictionary from a JSON serialization
+	add an assert() function to easily assert that a condition is true
+	add string manipulation functions: strcontains(), strfind(), strprefix(), strsuffix() for string substring searching
+	add graph menu items to the Simulation menu in QtSLiM, as used to exist in the old SLiMgui; left out accidentally
+	add SLiMSim method individualsWithPedigreeIDs() for fast lookup by pedigree ID, for keeping track of long-term interactions
+	fix functions/methods that take Subpopulation/MutationType/SLiMEidosBlock to also accept an integer id, as most functions/methods already do:
+		calcVA(), rescheduleScriptBlock(), individualsWithPedigreeIDs(), mutationCounts(), mutationFrequencies(), nearestNeighborsOfPoint(), evaluate()
+	fix JSON parsing bugs (singleton string value, illegal values)
+	add first() events at the start of the generation cycle
+	add survival() callbacks governing mortality in nonWF models
+	modify Eidos grammar for function declarations slightly, to allow a unary minus preceding a numeric default argument value
+	switch from Subpopulation-level object pools for genome/individual to Population-level object pools; get rid of a lot of ugly code as a result, particularly in takeMigrants()
+	minor policy change: removeMutations() will no longer warn when called from a late() event in nonWF, or an early() event in WF, *if* it was asked to create a substitution
+	policy change: source() now raises an error if the file path it is given does not exist
+	add [logical$ chdir = F] argument to source(), mirroring R's parameter of the same name, to make include-style usage of source() simpler (#190)
+	add the ability to relocate an individual with a survival() callback, to enable sperm storage and other such models where life continues after death
+	add recipe 16.22, sperm storage with a survival() callback
+	revise recipe 16.12 to use a survival() callback
+	add recipe 16.23, tracking separate sexes in script nonWF style
+	fix InteractionType to allow > 2 billion interactions in a model (switch from uint32_t to uint64_t)
+	add an "action button" at the bottom of the haplotype plot window, like that in graph windows
+	add checks for malloc/calloc/realloc failures, for clusters that make allocations fail when the process is at its memory limit
+	fix a small bug involved duplicate derived states getting recorded by addNewDrawnMutation() when multiple mutations are added at the same position
+	updated to tskit C_0.99.14 (big metadata bug fix)
+	updated to unversioned tskit code to get improved consistency checking stuff quickly; will update to a tagged version when one comes out
+	add a concept of deprecated APIs in Eidos, to allow properties/methods to be documented as deprecated but not auto-completed
+	now perform fuller consistency checks (mutation/node time mismatches) every generation in DEBUG, and also now after simplification in DEBUG
+	change addRecombinant() to use (NULL, NULL, NULL) as a signal to create a null genome, rather than an empty genome without new mutations; this better reflects the existing semantics (breaks backward compatibility)
+	add genomesNonNull property to Subpopulation and Individual, returning those genomes of the subpop/individual that are not null genomes, for easier management of models that contain null genomes
+	add flags to addEmpty() allowing the user to request that either or both genomes ought to be null rather than just empty
+	add isHaploid=F flag to addSubpop()
+	remove the dominanceCoeffX property of SLiMSim and the xDominanceCoeff parameter to initializeSex() (breaks backward compatibility)
+	add a new haploidDominanceCoeff property to MutationType to take its place with more flexibility and generality
+	revise recipes as needed (16.13, 16.14 - the nonWF haploid recipes) to adjust for the above changes
+	extend outputFull(), readFromPopulationFile(), and .trees I/O to support null genomes and haploids
+	allow readFromPopulationFile() with a .trees file even when tree-seq recording is not enabled
+	add an rnbinom() function to draw from a negative binomial distribution
+	add -write(s$ filePath) method to Image, to write an Image as a PNG file
+	add -spatialMapImage() method to Subpopulation to let you get an image for a spatial map
+	add tempdir() function to Eidos for better cross-platform support; revise recipes that use /tmp to use this (9.2, 9.3, 9.6.2, 17.3 I, 17.3 II)
+	add sysinfo() function to Eidos for better cross-platform support
+	add grep() function to Eidos for regular expression matching
+	add DataFrame class to Eidos (a subclass of Dictionary for representing data tables), with:
+		properties: colnames, dim, ncol, nrow
+		methods: cbind(), rbind(), subset(), subsetColumns(), subsetRows()
+		other features: prints as a data table rather than a dictionary
+	add "csv" and "tsv" options to the Dictionary method serialize(), for generating CSV/TSV content (note serialize() now returns string, not string$)
+	add readCSV() function that reads a CSV (or TSV) file and returns a DataFrame
+	modify Dictionary method getRowValues() to make it useful as a contrast to DataFrame.subsetRows(), by allowing ragged rows, matrix/array elements; add [drop=F]; these changes are backward-compatible
+	change Eidos output of float values slightly; 1.0 now outputs as "1.0", not "1", to show that it is a float; seems better, breaks backward compatibility in a minor way
+	replace recipe 14.4 (modeling inversions), incorporating changes from Vince Buffalo, Peter Ralph, & Andy Kern that fix several problems (see new discussion in the manual)
+	add the ability to create a new grayscale Image from a 2D matrix of values, the inverse of the integerK / floatK properties, as Image(numeric matrix); RGB may be added later if needed
+	keep a hash table from pedigree ID to individual table row, to speed up remembering of additional individuals
+ 	add parent pedigree ids to individual metadata (.trees file version increment); add pedigree-based info to the parent column of the individuals table
+	add summarizeIndividuals() to create vectors/matrices/arrays, and thereby spatial maps, that summarize a set of individuals
+	add recipe 15.13 showing how to use summarizeIndividuals() to make a spatial map (for density-dependent fecundity)
+	fix the reproductiveOutput property so that it doesn't increment (or, in fact, decrements back down!) if a child is rejected by modifyChild()
+	add clippedIntegral() method to calculate the integral of an interaction function clipped to the spatial bounds of focal individuals
+	add localPopulationDensity() method to divide total strengths by clipped integrals to provide weighted local density values
+	revise recipe 16.11 to use localPopulationDensity()
+	update to robin hood hashing version 3.11.3 to get a few nice fixes and speed improvements
+	fix a floating-point roundoff issue that would cause the frequency of fixed mutations, from mutationFrequencies(), to sometimes differ very slightly from 1.0
+	add recipe 16.24, haplodiploidy
+	modify recipe 16.15 (WF models implemented as nonWF models); there are now two recipes, the second one showing how to implement fitness-based mating success
+	add support for Markdown in the Jump menu (_italic_, *italic*, __bold__, **bold**; only in section header items, not in script block comments (Qt doesn't allow within-item formatting)
+		also headers: # a lot larger (H1), ## a little larger (H2), ### default size (H3), #### a little smaller (H4), ##### medium-small (H5), ###### a lot smaller (H6)) (note the space after the hashes is required!)
+	add "unified" display mode in SLiMgui's individuals view
+	Windows port, thanks to Russell Dinnage!  see manual for install instructions, etc.
+	fix recipe 5.4 II (jump menu annotations with the Gravel model) to work with the new Markdown support added
+	policy change: the same subpop identifier, such as p1, may not be reused in a model; this was already true for tree-seq, now it is enforced for all models for consistency (breaks backward compatibility)
+	add name and description properties to Subpopulation; persist them in treeseq metadata in the population table; switch the population table metadata schema from binary to JSON so we can add `name` and `description` in a way tskit and others can read
+	upgrade the debugging output window: now with tabs for every output stream including LogFile and writeFile()
+	fix relatedness() to handle overlapping generations, multiple parentage, etc, correctly; the version of relatedness() in SLiM 3.6 should not be used
+	redesign the UI for the chromosome view and individuals view, to provide "action buttons" for more user-visible configurability
+	add treeSeqMetadata() function to get the metadata from a .trees file, as a Dictionary, without reading in the tree sequence
+	updated to tskit 0.99.15 to try out C API 1.0 prerelease stuff
+	add [Ns$ timeUnit=NULL] parameter to initializeTreeSeq() to set the name of the tree-sequence recording time unit
+
+version 3.6 (build 2784; Eidos version 2.6):
+	update to JSON for Modern C++ version 3.9.1
+	add metadata= parameter to treeSeqOutput(), to support user-generated metadata on the tree sequence
+	make ampersands show up in the Jump menu properly in SLiMgui
+	fix tab stops in SLiMgui
+	add an F-distribution drawing function, rf(), following R, by request
+	fix bug with source() that produced a warning about paste() semantics, and an incorrect sourced script string
+	fix segfault-causing bug in Eidos argument processing for certain recursive calling patterns
+	fix SLiMgui to not accept rich text pastes
+	enable multiple selection in the Find Recipe panel
+	revise recipes to avoid outputFull() when it takes a long time (Qt is slow processing big output dumps)
+	add a [permanent=T] optional flag to treeSeqRememberIndividuals() to allow for individuals to be "retained" rather than "remembered", thanks to Yan Wong
+	add [retainCoalescentOnly=T] flag for initializeTreeSeq() to modify simplification to keep more retained nodes than it otherwise would
+	add a generationStage property to SLiMSim to access the current generation cycle stage
+	improve command-line processing – add -h/-help option, accept -- prefix
+	add a precision property to LogFile to govern the floating-point precision of its output (for other types of output, format() can often be used to get a specific output precision)
+	change SLiMgui (QtSLiM) to open .py recipes in the browser, for a better overall user experience
+	make SLiMgui on macOS not quit on the last window closing, following standard macOS user interface guidelines; requires Qt 5.15.2 due to Qt bugs
+	SLiMgui: fix syntax coloring bug (keywords not colored properly)
+	SLiMgui: fix missing color boxes in the help to show WF/nonWF/nuc properties/methods
+	add dark mode support for SLiMgui, for both macOS (tied to the OS setting) and Linux (with a checkbox in the prefs)
+	update to tskit 0.99.10 to gain some new simplify() functionality
+	fix a bug causing a spurious error about mismatching dominance coefficients in readFromPopulationFile() with very large dominance coefficient values
+	make <- an illegal token in Eidos, to guard against users who are used to R accidentally doing "a <- b;", which would otherwise be a comparison, "a < -b;", and would silently do nothing
+	the status bar in SLiMgui now resizes vertically to show wrapped content when necessary (long function/method signatures)
+	extend Eidos to allow all Unicode characters beyond 7-bit ASCII in identifiers, including accented characters, Chinese characters, and emoji
+	fix argument processing bug (crash) for function/method calls with more than 256 arguments
+	fix bugs with LogFile - writing zero-length compressed data gave an error, SLiMgui messed up the directory the log file was saved to
+	add "debug points" for runtime debugging of models in SLiMgui; new debugging output window, menu items, buttons, etc.
+	switch from QTextEdit to QPlainTextEdit for better performance (no user-visible change apart from SLiMgui performance on large amounts of output)
+	add support for an "error stream" in Eidos, in addition to the standard output stream; add [error=F] argument to cat(), catn(), print(), str() to support this
+	fix a bug with the reproductive output tracking for an individual being incorrect after the individual is moved with takeMigrants()
+	fix a serious bug with takeMigrants() that could lead to corruption/crashes, if a variable holding Individual objects was kept across the call and used again
+	add verbosity property to SLiMSim, to get/set the verbosity level
+	fix memory leak of subpopulations after removeSubppulation() is called in WF models; could also cause an error, "ERROR (Population::TallyMutationReferences): (internal error) tally != total genome count"
+	bump the .trees file version to reflect the change in sense for the individual flags (SLIM_TSK_INDIVIDUAL_RETAINED instead of SLIM_TSK_INDIVIDUAL_FIRST_GEN); no user-visible consequence
+	fix bug causing output from nested events/callbacks/functions to be emitted in the wrong (non-chronological) order in some cases
+	add a debugIndent() function to Eidos, providing the current indentation string for use in producing error output that matches the indentation of debug points
+	add recipe 16.21, "Dynamic population structure in nonWF models"
+	extend Dictionary with getRowValues() and appendKeysAndValuesFrom() methods to enable dataframe-like usage patterns with it
+	extend Dictionary() constructor to allow it to be passed key-value pairs to set, or a Dictionary to copy
+	extend Dictionary with an identicalContents() method to test for equality of Dictionary objects (containing the identical keys and values)
+
+version 3.5 (build 2663; Eidos version 2.5):
+	added build instructions for Windows WSL, thanks to Bernard Kim (no code change)
+	fix some issues with recipes 13.5 and 14.8 (involving live plotting in R) with platform-dependent paths, lack of PDF viewing support in QtSLiM, etc.
+	fix bug with precedence for operator ^, which needs to be higher than unary - to follow standard mathematical convention (GitHub #99)
+	add a tabulate() function to Eidos, more or less parallel to that in R
+	speed up match() for large x vectors, using unordered_map; goes from O(N*M) to O(N+M)
+	add a quantile() function to Eidos, parallel to R's default "type 7" quantile function
+	add new tests for the treatment of NANs, fix bugs with treatment of NANs in:
+		sort(), order(), setUnion(), setIntersection(), setDifference(), setSymmetricDifference(), dbeta(), dgamma(), dmvnorm(), rmvnorm(), identical(), match(), unique(), min(), max(), range(), pmin(), pmax(), operators >=, <=, ==, !=
+		the sort() behavior now sorts NANs to the end of the vector; this is equivalent to R's with na.last=T set (which is not R's default!)
+		comparison operators now obey the IEEE rules for unorderability of NAN; if x is NAN, x<y, x>y, x<=y, x>=y, x==y are all F, x!=y is T
+	disallow adding mutations with addNewMutation() / addNewDrawnMutation() / addMutations() to individuals of age > 0 prevent tree sequence inconsistencies; see issue #102
+	extend codonsToAminoAcids() to be able to return integer codes for the amino acids, if passed long=0
+	add population and subpopulation fitness distribution plots to QtSLiM
+	revise recipe 5.4 (Gravel model) thanks to Chase W. Nelson
+	add 1D and 2D SFS plots to QtSLiM, along with a 2D frequency spectrum plot
+	improve plots in QtSLiM, particularly PDF generation
+	add colors() function to Eidos, providing several new color palettes including Turbo and Viridis
+	integrate tskit 0.3.0 into SLiM, allowing more efficient tree sequence simplification (due to faster sorting) and new metadata schema support for interoperability
+	rename SLiMgui to SLiMguiLegacy
+	rename QtSLiM to SLiMgui, including cmake and qmake build targets and flags (BUILD_SLIMGUI=ON instead of BUILD_QTSLIM=ON, SLiMgui target instead of QtSLiM)
+	revise recipes 13.5 and 14.8 to generate PNG images, not PDF, since the new SLiMgui requires that
+	add Age Distribution graph to QtSLiM
+	add Population Size ~ Time graph to QtSLiM
+	make the Step button step continuously when held down, in QtSLiM
+	make "generation play" (entering a new generation in the generation counter textfield) use the Play button, and be stoppable
+	add tree sequence simplification to SLiMgui/QtSLiM profiles
+	remove the first generation flag from SLiM .trees files, switch to the new simplify algorithm that preserves ancestors that are referenced
+	extend mutation() callbacks to allow returning an existing mutation
+	policy change: mutation positions, when generating a gamete, are now uniqued – breaks backward reproducibility for almost all models
+	add subsetMutations() method on SLiMSim for fast lookup of specific mutations
+	add new recipe 18.14: "modeling identity by state (IBS): uniquing new mutations down with a mutation() callback"
+	add new recipe 10.6 II - Varying the dominance coefficient among mutations II
+	policy change: originGeneration can no longer be used as scratch; it must be set to the current generation when a mutation is created
+	policy change: pedigree tracking is now always enabled, and the keepPedigrees flag to initializeSLiMOptions() does nothing - REVERTED
+	add line numbers and highlighting of the current line in SLiMgui, controllable in the preferences
+	add "Jump to Line..." menu item under Edit > Find (command-L) in SLiMgui
+	allow multiple copies of the same graph type to be opened in SLiMgui
+	update tree-seq recipes for new tskit/pyslim APIs: 17.2, 17.4, 17.5, 17.7, 17.9, 18.13
+	implement pre-processing of function/method argument lists (optimization), and extend function/method signature syntax to allow arguments following an ellipsis (the named argument syntax must be used to assign them)
+	extend paste() and paste0() to take multiple arguments, with new signatures (string$)paste(..., [string$ sep = " "]) and (string$)paste0(...), to encourage avoidance of the evil paste(c(...)) pattern
+		note this change is not completely backward-compatible; if you were passing in a sep= argument to paste() without the named argument syntax, you need to add sep=
+	update recipes 4.2.5, 13.5, 14.8, and 16.12 (I) to use the new paste()/paste0() syntax – use "sep=" explicitly, avoid paste(c(...))
+	add individual pedigree IDs to outputFull() for both text and binary formats if pedigreeIDs=T is specified, read/use them in readFromPopulationFile()
+	add a "jump to event/callback" button to QtSLiM
+	optimize sample() for the full shuffle case, and for better performance with large N; optimize sampleIndividuals() a bit for simple cases; may break backward compatibility for users of sample()
+	add support for doxygen-style /** and /// comments that get used in the "jump to" popup as section headers
+	darken the QtSLiM app icon while a model is running
+	add relayout option to prettyprinting in SLiMgui, with option-click/alt-click of the prettyprint button
+	add autosave option (off by default) to SLiMgui
+	show colored function/method signatures in the SLiMgui status bar
+	show elapsed CPU time, segregating mutations, and number of substitutions in the SLiMgui status bar
+	make it possible to retain a Mutation object long term with defineConstant() / setValue(), with a revamp of object memory management under the hood (putting Mutation under retain/release)
+		subtle behavior change: the reported frequency of a mutation that is removed with substitute=T used to be 0.0, now it is 1.0 (which seems more correct)
+	add isFixed and isSegregating properties to Mutation to help diagnose the state of a mutation that has been retained long-term
+	add recipe 9.9, "Keeping a reference to a sweep mutation"
+	add recipe 9.10, "Tracking the fate of background mutations"
+	add Image class to Eidos, based on lodepng
+	extend Dictionary with allKeys, addKeysAndValuesFrom(), clearKeysAndValues()
+	make superclass relationships explicit and documented; make Chromosome, SLiMEidosBlock, and SLiMgui inherit from EidosDictionaryUnretained
+	move doc for setValue()/getValue() to the Eidos manual, remove all the duplicated doc for it in SLiM
+	show superclasses in the doc browser, with a hyperlink
+	change defineSpatialMap() to require a matrix (except in the 1D case), removing the gridSize parameter (breaking backward compatibility!), and reading the matrix in the right order (so it looks the same in SLiMgui as in the console)
+	revise recipes 15.10 and 15.11 to adjust to the changes in defineSpatialMap() (and fix a very small bug with the spatial bounds)
+	put Chromosome under retain/release (subclassing EidosDictionaryRetained) so it can be kept long-term
+	add a "showSymbolTables=F" option for ls() that, if T, shows the whole chain of symbol tables that are defined, mostly for debugging purposes
+	change scoping rules so that variables in the global scope are visible inside user-defined functions and callbacks, like global constants
+	add a defineGlobal() function, parallel to defineConstant(), to assign a variable into the global scope
+	add "Robin Hood Hashing" to use in place of std::unordered_map in time-critical spots: match(), Dictionary, Genome bulk operations, MutationRun split/join, EidosTypeTable symbols, tree-seq simplification and individual table management, MS output
+	add a flushFile() function to Eidos to flush buffered content from writeFile()
+	add LogFile class for logging data to a CSV/TSV file, plus method createLogFile() and property logFiles on SLiMSim
+	policy change: errors during writeFile() are now errors, not warnings
+	added files to support Bryce Carson's new Fedora package installer
+	add serialize() method to Dictionary, make Dictionary -allKeys be in sorted order
+	add mutationCountsInGenomes() and mutationFrequenciesInGenomes() methods for getting counts/frequencies within any sample of genomes
+	add a calcFST() function to SLiM to provide easy FST calculations; revise recipe 11.1 to use the new function
+	add a functionSource() function in Eidos to allow the user to see the Eidos source code for functions that are implemented in Eidos
+	add a calcVA() function to SLiM to calculate additive genetic variance for quantitative traints
+	added arm64 build for Apple Silicon
+	add a calcPairHeterozygosity(), calcHeterozygosity(), calcWattersonsTheta() functions to SLiM, add optional windowing to calcFST()
+	revise recipe 14.1 to use calcHeterozygosity() instead of using custom code
+	add reproductiveOutput (Individual) and lifetimeReproductiveOutput (Subpopulation) properties to track individual reproductive output
+	add a new recipe 4.2.5, "Automatic logging with LogFile" (the old one became 4.2.6)
+	add a new recipe 16.19, "Range expansion in a stepping-stone model"
+	add a new recipe 16.20, "Logistic population growth with the Beverton–Holt model"
+	add lifetime reproductive output plot to QtSLiM; change the reproductive output logging to separate by sex, add lifetimeReproductiveOutputM and lifetimeReproductiveOutputF properties to cover that
+	minor bugfix for recipe 14.7; use L instead of L-1 for chromosome length
+	back out the earlier (9/4/2020) change making pedigree tracking always on, because the performance hit was too large; so the keepPedigrees flag to initializeSLiMOptions() now does something again
+	put the reproductiveOutput/lifetimeReproductiveOutput properties under keepPedigrees=T, be more strict about requiring keepPedigrees=T to see/access any pedigree information at the user level
+
+version 3.4 (build 2438; Eidos version 2.4):
+	fix a subtle bug in which mutation IDs used by mutations read in from a .trees file could be re-used, producing a conflict, if the mutations were not ancestral to any extant genome -- biting you if you wrote a .trees file out again at the end
+	add qnorm() function in Eidos; thanks to Vince Buffalo for the PR
+	add SHA-256 code, output of a script hash to .trees files with the parameters/model_hash subkey, and an option to omit provenance output of the full script in outputTreeSeq() with includeModel=F; increment .trees file_version to "0.4"
+	fix a crash in haplotype plotting when the number of genomes is large
+	fix display bug with haplotype display on retina displays
+	add recipe 16.18: a spatial epidemiological S-I-R model
+	new versions of recipes 9.5.2 and 9.5.3 to fix a bug involving fitness calculations with multiple mutational lineages for a single sweep; see https://groups.google.com/d/msg/slim-discuss/DW-QqzoZLgg/NCusXvBqBAAJ
+	extended writeFile() and writeTempFile() to support writing .gz compressed files with compress=T, added zlib 1.2.11 to the project
+	add dbeta(), dexp(), and dgamma() functions to Eidos to provide probability density functions for those distributions
+	extended the compress=T option for writeFile() to support append=T as well, with internal buffering for performance
+	add QtSLiM to project!
+	fix a bug that failed to catch an overflow in the tree-sequence tables for a large model
+
+version 3.3.2 (build 2158; Eidos version 2.3.2):
+	add recipe 5.2.4 (joining subpopulations)
+	extend recipe 5.4 (the Gravel model) to show output from a vector of genomes sampled from multiple subpops
+	fix a bug in recipe 13.4 (introduced in SLiM 3.3) that caused the environmental noise not to be included in the phenotypic values used for fitness calculations
+	add an optional <level> argument for the command-line option -l/-long, to provide the level of verbosity desired (default level is 2; defaults to 1 if -l/-long is not used)
+	add recipe 16.17 (meiotic drive)
+	add recipes for section 13.6 (a variety of fitness functions)
+	speed up AddIndividualsToTable(), eliminating a bottleneck for large models with multiple subpopulations
+	speed up outputMutations(), which was very slow if a large number of mutations were requested for output
+	protect methods in InteractionType against being passed new juveniles that have not yet been added to the subpopulation
+	optimize the sample size 1 case in sampleIndividuals() when criteria are specified (min/max age, etc.)
+	add SLiMgui launch check for needed fonts
+	fix a bug in AddNewDrawnMutation()/AddNewMutation() if a non-singleton vector of positions is given in unsorted order: the genome order is incorrect!
+	tweak the default nonWF model to find a mate with "subpop.sampleIndividuals(1)" not "p1.sampleIndividuals(1)", for generality
+	tweaks to allow distribution under conda-forge
+	increase the precision of MS output from 7 decimal places to 10, to accommodate larger chromosomes with precise positions
+
+version 3.3.1 (build 2116; Eidos version 2.3.1):
+	fix SLiMgui crashing bug involving (a) a type "s" mutation type with (b) a fixed color set for it
+	protect against a non-existent or non-writeable /tmp directory, which apparently some systems have
+	fix crash in SLiMgui due to inaccessible properties
+	fix bug involving (a) genomic elements specified out of sorted order, AND (b) a non-uniform mutation rate map; some genomic elements can end up not generating any mutations at all (present since SLiM 2.5)
+	add an option to clock() to select the clock type ("cpu" or "monotonic", for now); add the same option to executeLambda()
+	fix a VCF output bug: blank lines in nucleotide-based output when a back-mutation is suppressed by simplifyNucleotides=T
+	add a wait=T optional parameter to system(), allowing wait=F (or a & at the end of the command line) to execute a system command in the background
+	enable access to pedigree IDs whenever they are valid (i.e., when tree-sequence recording is enabled, as well as when pedigree tracking is enabled), and add them to VCF output when available
+	add an "individual" property to Genome that provides the individual to which a given genome belongs
+	fix a crash with clonal nucleotide-based models using a custom mutation matrix
+	shift temporary files used by -eidosTest and -slimTest into a randomly named subfolder, where necessary to prevent conflicts with other users
+	change recipes that set a new seed to use 2^62 rather than 2^32, to avoid repeated sequences
+	fix memory allocation issue with more than 2^26 individuals
+	fix crash when trying to use an InteractionType after takeMigrants() has made its cached data invalid
+	fix crash when a call to takeMigrants() tries to migrate the same individual twice (i.e., the migrants vector is not uniqued)
+	fix signatures shown in SLiMgui for callbacks that have return values
+	fix problems with the variable browser caused by inaccessible properties
+
+version 3.3 (build 2062; Eidos version 2.3):
+	fix bug resulting in incorrect sex ratio (all males!) in sexual nonWF models when saved to a population file (either binary or text)
+	add nucleotideBased flag to initializeSLiMOptions()
+	add a NucleotideArray class to keep compact nucleotide sequences (2 bits per nucleotide)
+	add initializeAncestralSequence() function
+	add Chromosome.ancestralNucleotides() method
+	add randomSequence() function
+	add nucleotideBased property
+	add nucleotideCount(), nucleotideFrequency() functions
+	add codonsToAminoAcids(), nucleotidesToCodons() functions
+	add initializeMutationTypeNuc() and nucleotideBased property on MutationType
+	add mutationMatrix to initializeGenomicElementType()
+	add mutationMatrix property and setMutationMatrix() method to GenomicElementType
+	add Mutation support for nucleotides: nucleotide, nucleotideValue, ditto for Substitution
+	add nucleotide argument to addNewMutation() and addNewDrawnMutation()
+	add nucleotides() method to Genome
+	add mmJukesCantor() and mmKimura() mutational models
+	implement sequence-based mutation
+	add mm16To256() function to expand a single-nucleotide mutation matrix into a trinucleotide mutation matrix
+	disable initializeMutationRate() and related API in nucleotide-based models
+	update the ancestral nucleotide sequence upon fixation
+	add hotspot map support: initializeHotspotMap(), setHotspotMap(), and associated properties
+	add output of nucleotides to outputMutations(), outputFixedMutations(), and other output methods
+	add nucleotidesToCodons() function
+	revamp the recombination model for the new gene conversion design
+	geneConversionFraction property removed, geneConversionEnabled / geneConversionNonCrossoverFraction / geneConversionSimpleConversionFraction / geneConversionGCBias added
+	remove gcStarts / gcEnds from the recombination() callback specification
+	remove old nucleotide and biased gene conversion recipes
+	fix recipe 6.1.3 (gene conversion)
+	add setGeneConversion() method on Chromosome to change the gene conversion parameters dynamically
+	add recipes for chapter 17 (17.1 - 17.10)
+	add recording of nucleotides and ancestral sequence in tree-sequence recording
+	incrementing .trees file version to 0.3
+	fix input/output of ASCII trees files
+	fix a bug with ASCII output of non-nuc models with outputFull() that prevented completely verbatim reloading (float precision issue)
+	add nucleotide support for readFromPopulationFile() with a text SLiM output file from outputFull() in a nucleotide-based model; nucleotides and ancestral seq restored correctly
+	add writing and reading of binary files with outputFull() and readFromPopulationFile() in nucleotide-based models
+	add heteroduplex mismatch repair, biased gene conversion, and add recipe 17.11
+	add readFromVCF() for reading from VCF files, readFromMS() for reading from MS files
+	speed up output of MS format for large models
+	add setAncestralNucleotides() method to Chromosome
+	add recipe 17.12, demonstrating loading from an empirical VCF file
+	disable link-time optimization (LTO) since it is causing build issues for some people
+	fix a bug with the time base of WF models when a .trees is loaded in an early() event; a parent/child timestamp conflict could result
+	add simplificationInterval parameter to initializeTreeSeq() (breaking backward compatibility, for those not using named arguments for checkCoalescence / runCrosschecks)
+	vectorize initializeGenomicElement(), fix recipe 17.7 to use it
+	make pedigree ID properties inaccessible when pedigree recording has not been enabled, to prevent confusion
+	make tag/tagF properties inaccessible when they have not been previously set, eliminating this class of bugs
+	in WF models, enforce that subpopulation total fitness must be finite, to catch overflows
+	fix minor code completion bug involving completing off of language keywords, like trying to complete "for" to "format=" in ancestralNucleotides()
+	revise recipe 9.3.2, remove recipe 9.4.2, revise recipe 9.4.4, revise recipes 11.1, 11.2
+	renumber recipes to make room for new chapter 13, move existing QTL recipes into chapter 13, add new recipe 13.2 to better introduce QTL model concepts
+	revise recipes 13.3, 13.4, 13.5, 14.4, 14.5; add recipe 6.1.4 (multiple chromosomes), add recipe 12.5 (tracking separate sexes in script)
+	remove recipe 14.6 (forcing a pedigree in a WF model)
+	revise recipes 14.7, 15.3, 15.4, 15.5, 15.6, 15.7, 15.8, 15.9, 15.10, 15.11, 15.12
+	add recipe 9.6 (varying dominance coefficients)
+	fix a bug that would produce incorrect results from mutationCounts() / mutationFrequencies() in early() events in nonWF models (not including the newly generated offspring)
+	fix compile issues on Xcode 10.2, upgrade to JSON for Modern C++ version 3.6.1 (from 3.1.2)
+	update GSL code to version 2.5  (no user-visible impact)
+	change mmJukesCantor() to take alpha, not mu, for consistency; revise recipes and doc
+	revise recipe 14.9, 16.2, 16.9, 16.10, 16.11, 16.12, 16.13
+	fix bug in mmKimura() mutation matrix (never released publicly)
+	fix bug in outputMS() and outputMSSample() with filterMonomorphic=T (not the default) that could result in incorrect output, or in a crash
+	fix uninitialized value bug with InteractionsData (never seen in the wild, probably inconsequential)
+	fix symbol table double-dealloc bug (never seen in the wild, probably inconsequential)
+	fix a possible misaligned pointer access when loading .trees files (never seen in the wild, only a problem on non-Intel architectures like ARM, might not even be a bug)
+	fix an edge-case crasher in tree-seq models (never seen in the wild, perhaps only occurs when crosschecks are enabled)
+	add ancestral sequence to memory usage stats
+	add drawSelectionCoefficient() method to MutationType
+	revise recipes 7.3, 7.4, 10.5.1 to eliminate unnecessary asInteger() calls
+	convert some float-type parameters to numeric-type: initializeTreeSeq(simplificationRatio), randomNucleotides(basis), spatialMapColor(value), defineSpatialMap(values, valueRange), setSpatialBounds()
+	highlight matches in the Find Recipe panel
+	the selected display mutation types now apply to substitutions as well as mutations
+	vectorize spatialMapValue() and revise recipe 15.11 to use it
+	optimize sample() with weights, revise recipe 11.2 (splitting it into version I and II)
+	correct recipe 16.15, which did not match the manual
+	optimize operator subset [] with a singleton integer argument, since that is the common case
+	fix an ordering problem with the remembered genomes after loading a .trees file (didn't match the order in the individuals table)
+	merge in kastore C_1.1.0 (67c5a6af4b85ea263e5cab854d94b691949e88ae) and tskit post-0.1.5 (3d16a36f8e54ac01a86f182dc73103bd07badf3e)
+	add mutation() callbacks and registerMutationCallback()
+	make nucleotide/nucleotideValue properties on Mutation writeable
+	fix some leaks
+	revise recipes 9.6 and 13.5 to use mutation() callbacks
+	switch Chromosome to keeping pointers to GenomicElement, fixing a potential crash (which I don't think anyone ever hit)
+	make initializeGenomicElement() return the new element, following the pattern of the other initialize...() functions
+	add GenomicElement pseudo-parameter element to mutation() callback API
+	switch Population from a subclass of std::map to containing a std::map of subpopulations (no user-visible effect)
+	add recipe 14.14 (Visualizing ancestry and admixture with mutation() callbacks)
+	add fileExists() function to Eidos
+	fix bug resulting in incorrect results from max() with (1) integer type, and (2) at least one singleton argument that is neither 0 nor 1
+	switch to "hardened runtime" in preparation for Apple's notarization procedure
+	improve self-tests
+	fix bug in matrix multiplication with type float
+	add recipe 18.13 (Tree-sequence recording and nucleotide-based models)
+
+3.2.1 (build 1897; Eidos version 2.2.1):
+	add support for the slim command-line tool to read its script from stdin instead of from a supplied input script file
+	fix bug that would bite models calling deregisterScriptBlock() more than once, leading to an incorrect event list in some cases
+	add recipe 15.15 (Implementing a Wright–Fisher model with a nonWF model)
+	fix a bug resulting in incorrect values for the pedigreeGrandparentIDs property of Individual; they were correct internally, but returned incorrectly
+	add a drawBreakpoints() method on Chromosome to allow models to draw breakpoints using SLiM's logic
+	add recipe 15.16 (Alternation of generations)
+	add support for "make install" with cmake (see the README.md / README.html for instructions), thanks to Peter Ralph
+	add support for link-time optimization (LTO) on platforms that support it, thanks to Kevin Thornton
+	add an rbeta() function to Eidos for draws from the beta distribution
+	add a pnorm() function to Eidos for a cumulative distribution function for the normal distribution
+	fix .trees file loading to check that the chromosome length matches, avoiding weird problems downstream
+	fix a SLiMgui crash when displaying a large number of genomic element types
+	add a SLiMgui class and slimgui global instance, available only when running under SLiMgui, that provides some useful control options
+	deprecate the inSLiMgui property of SLiMSim; use 'if (exists("slimgui")) ...' instead; revised recipes 13.11 and 13.17 for this change
+	add SLiMgui.openDocument() and SLiMgui.pauseExecution() methods, and SLiMgui.pid property, to SLiMgui class; revised recipes 13.11 and 13.17 to use openDocument()
+	add Subpopulation.configureDisplay() method, inserted a new recipe 5.3.4 to provide an example of using it
+	fix a code completion hiccup with return/else/do/in
+	improve error-reporting for command-line defines
+	fix an uncaught raise optimizing illegal numeric constants
+	update citations listed by citation()
+	improve recipes (10.2, 10.3, 10.6.2, 16.3) that call setSeed(getSeed() + 1) to do setSeed(rdunif(1, 0, asInteger(2^32) - 1)); Matthew Hartfield pointed out the potential replicate correlation issue
+	move back deployment target from OS X 10.11 to OS X 10.10 thanks to Deploymate
+	fix a bug involving calling setValue() inside a for loop, and similar setValue() scenarios involving a changing value
+
+3.2 (build 1859; Eidos version 2.2):
+	fix a bug that could result in incorrect parent2, parent2Genome1, and parent2Genome2 values in modifyChild() callbacks in clonal models; should not impact correct model code
+	fix incorrect values for isCloning / isSelfing in modifyChild() callbacks in nonWF models using addCloned() / addSelfed()
+	fix incorrect modifyChild() callback source in nonWF models using addCloned(), addCrossed(), and addSelfed(); they were getting the list of callbacks from the target subpopulation
+	fix crash in addEmpty() that nobody noticed because nobody uses it
+	add a new addRecombinant() method that allows easier modeling of haploids, horizontal gene transfer, and pre-planned recombination breakpoints
+	add recipe 15.13 (modeling clonal haploids in nonWF models with addRecombinant())
+	add recipe 15.14 (modeling clonal haploid bacteria with horizontal gene transfer)
+	add rgeom() function to Eidos for draws from a geometric distribution
+	optimization of property & method dispatch (signature lookup, specifically), using lookup tables instead of hash tables
+	add outputUsage() method to dump memory usage of a simulation, incorporate this information into SLiMgui profile reports
+	add a button in SLiMgui to change the current working directory, correctly track the cwd when multiple SLiMgui windows are open, across recycles, etc.
+	add Find Recipe... panel in SLiMgui
+	modify asString(NULL) to return "NULL", and the string-concatenation operator + to use "NULL" when NULL is concatenated; cat() and catn() still produce no output for NULL
+	scheduling a callback/event into the past now results in an error
+	add a parameter to outputMS() and outputMSSample() to allow only sites that are polymorphic within the sample to be output: filterMonomorphic=T
+	fix code completion in SLiMgui after return, in, else, and do
+	make code completion much smarter; iTr now completes to initializeTreeSeq(), wf to writeFile(), etc.
+	fix recipe 11.1 issue with calcFST() function returning NAN if any mutations are either (a) missing from both subpops, or (b) fixed in both subpops
+	fix issues with passing NAN as a color component to the Eidos color-translation functions
+	make SLiMgui's "graph population visualization" migration rates in nonWF models reflect juvenile migration due to a non-parental destination subpop for addX()
+	add a print=T flag to version() so scripts can switch on the Eidos or SLiM version number without generating unwanted output
+	vectorized the exists() function so a vector of symbol names can be check for existence
+	vectorize the Eidos color-manipulation functions, using matrix arguments/returns: color2rgb(), hsv2rgb(), rgb2hsv(), rgb2color()
+	add new color palette functions: heatColors(), rainbow(), terrainColors(), and cmColors()
+	fix big performance issue for nonWF models as they build up genetic diversity, due to the wrong mutation frequency tallying code path being used
+	fix bug EidosSymbolTable buffer overrun in ContainsSymbol() and related methods; this will bite models that define a very large number of symbols (e.g., some nucleotide models)
+	make Eidos and SLiM more robust to NAN being passed in to various functions (rpois() hang, in particular)
+	fix corrupted spatial location data for some individuals (mostly, maybe only?, first-gen individuals) in .trees files
+	add a usage() function to get the current or peak memory usage of the process
+
+3.1 (build 1817; Eidos version 2.1):
+	dmvnorm() function added to Eidos, parallel to dnorm() but for multivariate Gaussian distributions
+	add JSON for Modern C++ (https://github.com/nlohmann/json) version 3.1.2 to SLiM for .trees provenance generation/parsing
+	extend SLiM's .trees file provenance info (tskit schema stuff, script text, seed, parameters, os environment, file_version==0.2)
+	fixed a inefficient bottleneck in recipe 13.4 (reading MS format files)
+	greatly increase the performance and memory usage of the InteractionType spatial engine for big models (add sparse array for caching pairwise interactions)
+		this breaks backward reproducibility in some models, because distances/strengths are now internally rounded to float instead of double
+	add interactionDistance() method to InteractionType, returning INF as the distance for non-interacting pairs (including self-self distance)
+	add nearestInteractingNeighbors() method to InteractionType, excluding non-interacting pairs from the returned set of neighbors
+	add interactingNeighborCount() method to InteractionType, to get a count without getting identities
+	changed the semantics of strength(); the first argument must now be a singleton individual, and it returns strengths exerted upon that individual (old semantics were ill-defined and broken for non-reciprocal interactions)
+	rememberIndividuals() now actually remembers individuals in the tree sequence, as well as (what it did before) their associated nodes
+	fix issues with genome recycling and subpop initialization, which could result in nodes in .trees files being marked as null genomes incorrectly and could cause memory usage to increase without bound
+	bug fix: incorrect neutral dynamics for WF models with no non-neutral muttypes, no fitness() callbacks, but using fitnessScaling to modify fitness
+	added remembering of the initial generation, to enable recapitation
+	change .trees files to have rebased times on write, to simplify pyslim and reduce user error
+	add a warning for spatial interaction types with no max distance
+	add recipe 13.19, biased gene conversion
+	add recipe 16.10, recapitation
+	fix coalescence checking to work even when individuals are remembered
+
+3.0 (build 1750; Eidos version 2.0):
+	add initializeSLiMModelType() function to choose SLiM's model type (WF or nonWF, at present), and modelType property on SLiMSim to access it
+	disable setSubpopulationSize(), setCloningRate(), setSelfingRate(), setSexRatio(), .cloningRate, .selfingRate, .sexRatio in nonWF models
+	disable addSubpopSplit(), setMigrationRates(), .immigrantSubpopFractions, .immigrantSubpopIDs in nonWF models
+	make definition of mateChoice() callbacks illegal in nonWF mode, including by registerMateChoiceCallback()
+	add age property to Individual, for nonWF models
+	add removeSubpopulation(), takeMigrants(), addCloned(), addSelfed(), addCrossed(), addEmpty() methods for use in nonWF models
+	add support for reproduction() callbacks, including adding registerReproductionCallback()
+	make convertToSubstitution default to F in nonWF models, since all non-neutral mutation types influence fitness and thus survival
+	add outputFull() ages=T parameter to control output of age information in nonWF models; does nothing in WF models; also modify readFromPopulationFile()
+	switch to using pointers for genomes and individuals
+	implement the nonWF generation cycle
+	add sampleIndividuals() and subsetIndividuals() methods on Subpopulation for faster fetching of mates, etc.
+	add fitnessScaling property to Subpopulation and Individual, to alter fitness values per individual or per-subpop without fitness(NULL) callbacks
+	optimizations: EidosSymbolTable improvements, constant caching, callback processing, argument processing, RNG optimizations, inlining, WF parent/child swap efficiency, fitnessScaling work
+	add hooks for tree sequence recording
+	improve accelerated property get/set to be more vectorized
+	add support for accelerated method implementations, accelerate a few core methods
+	speed up SLiMSim::mutationsOfType(), SLiMSim::countOfMutationsOfType(), Genome::containsMutations(), SLiMSim::mutationCounts(), SLiMSim::mutationFrequencies(), Genome::mutationsOfType()
+	switch to dispatch of properties and methods using std::unordered_map to look up the signature
+	miscellaneous other optimizations: "1/relFitness" fitness() callbacks, property return checks, symbol table crossover, std::unordered_map vs. std::map, dynamic_cast<> usage, unnecessary IsNull() calls
+	add a "New (nonWF)" menu item to SLiMgui for quick creation of new nonWF models
+	make WF-only and nonWF-only API visibly tagged (with colored boxes) in the SLiMgui help window
+	add seqLen() function to Eidos, like seq_len() in R
+	add nonWF recipes
+	fix InteractionType bug with periodic boundaries and totalOfNeighborStrengths() / strength()
+	fix bug where a gene conversion rate of exactly 1.0 would be treated as 0.0
+	fix bug with paste of code from a source with unconventional line endings
+	add support for a logical argument to mean(), and increase the accuracy of mean() for very large integer vectors by trying to avoid floating-point overflow issues
+	fix bug that allowed cachedFitness() to be called from a late() event, returning garbage values
+	fix recipe 13.1, which called cachedFitness() during a late() event, which should have been illegal (and now is illegal)
+	add recipe 13.3 III, mortality-based fitness using fitnessScaling
+	fix a crash when calling setSubpopulationSize(0) (or removeSubpopulation()) twice on the same subpop
+	fix searches in the help for strings that return more than one identical hit, such as "tag"; such searches were only displaying one of the multiple hits
+	display the emergent selfing rate, cloning rate, and sex ratio in SLiMgui for nonWF models
+	make the population visualization graph work better with nonWF models (using fitness values without density scaling, display emergent migration rates)
+	make the fitness over time graph display fitness without density scaling, as in other aspects of SLiMgui's presentation of fitness
+	fix a crash with the fitness over time graph when the simulation became invalid (due to a stop() call or other error)
+	fix a rare crash on quit from SLiMgui
+	fix a crash due to stack overflow with large population sizes (only when callbacks are involved in offspring generation)
+	add new tree seq stuff: initializeTreeSeq(), treeSeqSimplify(), treeSeqRememberIndividuals(), treeSeqOutput()
+	add getwd() / setwd() functions to Eidos
+	add var(), cov(), cor() statistics functions to Eidos for variance, covariance, and (Pearson) correlation
+	change Eidos to not automatically assume return values based upon the value of the last statement; that makes it confusing/hard to define a function that returns void
+	policy change: property/method accesses on zero-length vectors now raise unless the return type of the property/method is unambiguous
+	"void" is now an actual value type in Eidos, although it can only be used as a return type for functions/methods; this improves type-safety
+	fix recipes: 13.2 (mateChoice() callback with no explicit return), 13.9 (sapply() with no value), 11.2 (cachedFitness() from a late() event)
+	add rcauchy() for Cauchy distribution draws, and a "c" Cauchy interaction function option for InteractionType
+	fix a display bug in SLiMgui on Retina displays
+	extend spatial point-processing methods (pointInBounds(), point[Periodic/Reflected/Stopped/Uniform], setSpatialPosition()) to be vectorized
+	add bounds-checking for MutationType DFE parameters and InteractionType IF parameters
+	display interaction types in the tableview drawer in SLiMgui, with a hover preview of the interaction function, as with mutation types
+	fix the incorrect actual recombination rate for requested recombination rates close to 0.5, impose a <= 0.5 requirement on recombination rates, add related recipe 13.18
+	improve options for display of subpopulations in the population view (control-click or right-click for menu)
+	add genome1 and genome2 properties on Individual to make getting just the first or second genomes of a vector of individuals simpler, in e.g. haploid models
+	add removeMutations(NULL) option that removes all of the mutations from the target genome, for e.g. haploid models; not allowed to be used with substitute=T
+	revise recipe 13.13 (modeling haploids) to use genome2 and removeMutations(NULL), making is much faster and simpler
+	make the default working directory be ~/Desktop when running in SLiMgui; makes no sense for it to be the folder the app is in
+	increase maximum chromosome length from 1e9 to 1e15 (breaks reproducibility from a given seed, due to new MT64 RNG)
+	fix rdunif() to be able to generate uniform draws in the full 64-bit range, using the new MT64 RNG; optimize rdunif() and rbinom() for the simple coin-flip case (breaks backward output compatibility)
+	fix a crash in SLiMgui when displaying a haplotype plot (including in the chromosome view) in a model with null genomes, such as an X or Y model
+	extend containsMarkerMutation() with a [returnMutation=F] argument so the found mutation can be obtained
+	code completion can now supply argument names when in a function/method call
+	add suppressWarnings() function in Eidos
+	fix issue with dropped model output just before a simulation terminated due to an error
+	add treeSeqCoalesced() and a checkCoalescence parameter for initializeTreeSeq(), to perform runtime checking for coalescence
+	add getValue() / setValue() functionality to Substitution, make values carry over from Mutation objects when they fix
+	add tree-seq recipes to SLiMgui
+	add a "migrant" property to Individual that is true if the individual has migrated in this generation, add "migrant" argument to sampleIndividuals() & subsetIndividuals()
+	add a timeUnit parameter to initializeTreeSeq() to allow the time unit to be set by the user; make it "generations" for WF and "ticks" for nonWF, by default
+	add recipe 9.11, effective population size versus census population size
+
+2.6 (build 1292; Eidos version 1.6):
+	make addNewMutation() and addNewDrawnMutation() vectorized, for much higher performance when adding many mutations in bulk; note policy change that requested mutations are returned whether added or not
+	add positionsOfMutationsOfType() method to Genome for speed of models that need that
+	extend the integer() function to be able to construct vectors of 0 and 1 at specified positions (sort of the opposite of which())
+	revise recipe 13.9 to use new vectorized addNewMutation(), as well as the new positionsOfMutationsOfType() and integer()
+	fix possible incorrect frequency/count info immediately after using addMutations() or removeMutations() (but not addNewMutation()/addNewDrawnMutation()) – the changes would not be reflected in freqs/counts immediately
+	fix a display bug with added (or removed) mutations in SLiMgui
+	add "Copy as Paragraph", remove "Paste and Match Style", in SLiMgui and EidosScribe
+	fix to only highlight errors in SLiMgui if the script has not changed since the last recycle (otherwise character positions are unreliable)
+	fix a bug causing the wrong help text to appear for "id" properties on some classes in the help panel in SLiMgui
+	add haplotype snapshot plot (create from the Graph pop-up menu or the Simulation menu)
+	add haplotype display option for the chromosome view (control-click and select from context menu)
+	extended recipe 13.5 to show the new haplotype display options
+	make so the chromosome view can display a subset (but more than one) of the mutation types defined
+	make so displaying a subset of mutation types works when in haplotype display mode too
+	periodic boundary conditions: added periodicity parameter for initializeSLiMOptions(), periodicity property on SLiMSim, pointPeriodic() method on Subpopulation
+		note policy change: new parameter inserted in initializeSLiMOptions()
+	add recipe 14.12, demonstrating periodic spatial boundaries
+	add display of mutation type DFEs as tooltips in the info drawer
+	add rdunif(), a function for generating draws from a discrete uniform distribution
+	add tips in SLiMgui for the chromosome haplotype display mode, script prettyprinting, and DFE visualization in the mutation type table
+	add recipe 13.15 showing how to implement microsatellites
+	add recipe 13.16 showing how to implement transposable elements
+	fix static analyzer issues, including minor bug fixes for _InitializePopulationFromBinaryFile() and a leak in haplotype plotting
+	fix a bug in doCall() that would fail to get the return value from user-defined functions
+	fix type-interpreter crashes with malformed function declarations
+	fix a refcounting bug that would bite users running more than one simulations at the same time in SLiMgui
+	switch to shared_ptr for call signatures, to fix a leak with user-defined functions
+	improve recipe 13.12 (modeling nucleotides) and optimize SLiM to make it run faster
+	add the ability to automatically select only non-neutral mutation types for display in the chromosome view
+	fix a bug (never released) in pure neutral tracking with addNewMutation(), and optimize pure neutral tracking some more
+	add ability to change the number of bins in the frequency spectrum plot
+	optimize EidosValue internals by using malloced buffers instead of std::vector, avoiding zero-initialization and capacity-checking
+	fix a bug (never released) in ConcatenateEidosValues() with logical vectors that would cause incorrect results in some post-2.5 GitHub versions
+	fix a bug (never released) in the new integer() two-value filling code added post-2.5
+	optimize method dispatch in Eidos to gather results more efficiently, with benefits for script-intensive models
+	add support for matrices and arrays in Eidos; new functions matrix(), array(), nrow(), ncol(), dim(), t(), cbind(), rbind(), matrixMult(), drop()
+	changed the output format from str() and x.str() to be more R-like
+	changed apply() to return a matrix or array in some cases; could break backward compatibility in rare cases
+	policy change: assignment into a subset of a property is no longer legal in Eidos (e.g. x.foo[1:3] = rvalue), because it is conceptually flawed (not an lvalue)
+	update the GSL code in Eidos to GSL version 2.4 and pulled in gsl_ran_multivariate_gaussian(), gsl_linalg_cholesky_decomp1(), and dependencies (no user-visible impact)
+	add rmvnorm() for drawing from a multivariate distribution
+	make version() return version numbers to the caller
+	extend defineSpatialMap() to allow the map values to be specified as a matrix/array
+	internal policy change: properties are no longer allowed to return NULL or be set to NULL, and must raise instead if they cannot provide a value
+	policy change: Chromosome properties that used to return NULL when inapplicable now raise (mutation rate map and recombination rate map properties)
+	change property semantics: singleton properties accessed on a matrix/array now mirror the dimensional structure of the target, like a unary operator
+	rename apply() to sapply() to match R, add a simplify= parameter to govern the result's dimensionality
+	add new apply() function to apply a lambda to margins of a matrix or array, as in R
+	fix recipes to use sapply() instead of apply(), following the new function names, and to run in more reasonable time (for testing of them)
+	rescale the color scheme for recombination and mutation rate maps in SLiMgui to handle a wider range(1e-6 to 1e-9), and make the mutation rate display with a more purple hue (compared to blue for recombination rate)
+	add recipe 13.17 showing a two-trait QTL-based phenotypic model with pleiotropy and nutational correlation, plus live R-based plotting
+
+2.5 (build 1204; Eidos version 1.5):
+	add a check for completeness of the help information compared to class definitions, and add doc for a few missing items
+	change the getValue()/setValue() implementation to be more memory-efficient when not used (but a little slower and less memory-efficient when used)
+	Mutation now supports getValue()/setValue() for greater extensibility
+	add script prettyprinting facility to SLiMgui
+	enhance pmax() and pmin() to allow a singleton vector to be paired with a longer vector
+	enhance max(), min(), and range() to allow any number of arguments of any length
+	enhance seq() to support an optional length parameter
+	enhance any() and all() to allow any number of arguments of any length
+	add a ternary conditional operator, ? else, to the Eidos language
+	add a sumExact() function for exact summation of floating point numbers
+	improved numerical accuracy for complex recombination maps
+	add ability to supply a mutation rate map instead of just an overall rate; removed the mutationRate property of Chromosome
+	add display of the mutation rate map in SLiMgui with the R button
+	add support for /* */ block comments to Eidos
+	fix Context-defined functions so SLiMgui works with them better (showing the function prototype even after an error)
+	fix a bug in InteractionType that would produce incorrect results for interactions if individuals had exactly identical coordinates
+	speed up mateChoice() callbacks that select just a subset of all possible mates
+	add a preserveOrder flag to the unique() function in Eidos to allow O(n log n) performance to be requested when order does not matter
+	rename function(), method(), and property() to functionSignature(), methodSignature(), and propertySignature() respectively
+	rename argument "function" for doCall() to "functionName"
+	add support for user-defined functions in Eidos and SLiM
+	add a source() function to read in and execute a source file
+	revise recipe 11.1 to fix the FST calculation code and encapsulate it into a reusable function
+	add menu item in SLiMgui to open the SLiM-Extras repository on GitHub
+	fix a major bug preventing new mutations from being introduced during clonal reproduction (existing in 2.4, 2.4.1, and 2.4.2)
+	add recipe 13.13, illustrating how to make a simple haploid model
+	add recipe 13.14, showing how to use variation in the mutation rate along the chromosome to model varying functional density
+	fix recipe 5.3.3, which had recipe 5.3.2's code in its file
+
+2.4.2 (build 1167 on branch mutid_bug_242; Eidos version 1.4.2):
+	fix for incorrect output due to non-unique mutation IDs
+
+2.4.1 (build 1166; Eidos version 1.4.1):
+	fix a crash (or possible bad simulation data) involving stale subpopulation pointers in genomes in multi-subpop models
+
+2.4 (build 1163; Eidos version 1.4):
+	add a system() function to call out to Unix to run commands
+	add a tooltip showing the frames per second for the play speed slider, and tweak the play speed metrics
+	add PDF viewing capability to SLiMgui for R plotting integration
+	add a writeTempFile() Eidos function for creating randomly named unique temporary files
+	adding inSLiMgui property to SLiMSim
+	add recipe 13.11, live plotting with R using system()
+	addition of catn() function, identical to cat() but with a newline appended to the output
+	addition of paste0() function, identical to paste() but with no separator
+	add -rescheduleScriptBlock() method to SLiMSim
+	add ability to display only one mutation type in the chromosome view, through a context menu (added a tip on this)
+	add a top/bottom splitter in the SLiMgui main window
+	implement mutation runs inside Genome for better performance
+	add a new option in initializeSLiMOptions() to control the number of mutation runs, if desired (usually unnecessary)
+	optimize crossover mutation code with improved code flow and expanded case treatments
+	optimize fitness calculations by caching fitness effects of mutations
+	optimization: switch to MutationIndex instead of Mutation *
+	optimization: keep mutation refcounts in a separate buffer
+	added -l / -long command line option for long (i.e. verbose) output
+	add font size preference to SLiMgui, for presentations etc.
+	optimization of simulations in which all mutations have no direct fitness effects, particularly QTL-based models
+	add sumOfMutationsOfType() method to Individual and Genome for fast totalling of additive QTLs in QTL-based models
+	optimize script block handling for sims with many script blocks, to decrease callback overhead
+	rewrite QTL-based recipes to use sumOfMutationsOfType()
+	added a preventIncidentalSelfing option to initializeSLiMOptions(), to prevent incidental selfing in hermaphroditic models
+	add profiling (performance monitoring) in SLiMgui
+	add alternative displays for the population view, selectable with right-click / control-click
+	upgraded to GSL version 2.3 and pulled in gsl_cdf_tdist_Q() and dependencies (no user-visible impact whatsoever)
+	added mutation run experiments
+	adding ttest() function for performing t-tests
+	optimize fitness calculations using non-neutral mutation caches
+	speed up pure neutral models by shifting from gsl_ran_discrete() to eidos_random_int() to choose mates
+	fix an Eidos bug when doing a for loop on a seqAlong() vector of a zero length parameter, like "for (i in seqAlong(q)) ..." where q is zero-length (probably nobody cares)
+	add recipe 9.5, Changing selection coefficients with setSelectionCoeff()
+	add performance metrics related to mutations and mutation runs to SLiMgui's profile reports
+	add setValue() / getValue() capability to MutationType, GenomicElementType, and InteractionType
+	scripted (type "s") DFEs in MutationType now have access to all SLiM constants
+	add mutationStackGroup property to MutationType and expand the mutation stacking algorithm accordingly
+	fix for a potentially serious bug in the Eidos function setDifference() (no impact if you do not use that function)
+	NOTE: this version changed model output in some cases because of a float/double change in fitness calculations
+	NOTE: this version changed model output for pure neutral models because of a change in the random numbers used to choose mates
+
+2.3 (build 1052; Eidos version 1.3):
+	added x, y, and z properties to Individual for tracking spatial location
+	add continuousSpace parameter to initializeSLiMOptions() to allow simulations to register as using continuous space
+	make SLiMgui display subpopulations spatially when continuous space is enabled
+	fix autocompletion bug with simulation symbols
+	fix an omitted case in Eidos subsetting (which raised an exception)
+	optimize ifelse() and operator ! in Eidos
+	change mateChoice() policy for all-zero return to be equivalent to returning float(0) – reject the first parent
+	optimization for mean() in Eidos
+	add InteractionType class, initializeInteractionType(), and spatial queries
+	fix copy so syntax coloring gets copied to the clipboard again
+	add setSpatialPosition() method to Individual
+	add spatialBounds, pointInBounds(), pointReflected(), pointStopped(), pointUniform(), and setSpatialBounds() to Subpopulation
+	add chapter 14 recipes
+	add chapter headers inside the Recipes menu
+	add support for interaction() callbacks
+	make the mutation-type argument for fitness() callbacks allow NULL, to allow non-mutation-based fitness callbacks
+	rewrite recipes 13.1, 13.3, 13.10, 14.2, 14.3, 14.4, and 14.5 to use global fitness callbacks instead of marker mutations
+	allow mateChoice() callbacks to return a singleton Individual that is the chosen mate
+	rewrite recipe 11.2 to return a singleton Individual from its mateChoice() callback
+	broaden spatiality of InteractionType to allow "y", "z", "xz", "yz"
+	implement the sex-segregation feature of InteractionType
+	implement the reciprocality feature of InteractionType, change default for reciprocality to F
+	adding unevaluate() to allow interactions to be reused with fresh calculations within a generation
+	fix a code completion bug when the simulation is invalid
+	first passes at recipes 14.6, 14.7, 14.8, and 14.9
+	move color-related code from SLiM to Eidos, add new color-conversion functions to Eidos
+	add support for spatial maps: defineSpatialMap(), spatialMapValue(), spatialMapColor()
+	add recipes 14.10 and 14.11
+	add support for output of positional information in outputFull(), and reading of positional information in readFromPopulationFile()
+	policy change: readFromPopulationFile() no longer has the side effect of recalculating fitness values, and warns if called at a time other than a late() event
+	remove the Import Population... command in SLiMgui, which no longer fits into the fitness-calculation model of SLiM
+	add tests for interactions and spatiality, tweak interfaces and requirements
+
+2.2.1 (build 992; Eidos version 1.2.1):
+	added recipe to demonstrate forcing a pedigree during mating (recipe 13.7)
+	added recipe to show suppression of baseline hermaphroditic selfing (recipe 12.4)
+	added recipe for estimating model parameters with ABC (recipe 13.8)
+	added tagF property to Individual
+	fix code completion key binding problem on OS X 10.12
+	add recipe for true local ancestry tracking (recipe 13.9)
+	fix a bug preventing negative constant definitions at the command line
+	generalize command-line defines to allow arbitrary expressions
+	add order() function to obtain indices for sorting
+	add recipe for heritability with quantitative genetics (recipe 13.10)
+	add properties (color, colorSubstitution) to allow custom coloring of individuals, genomic element types, and mutation types in SLiMgui
+	add recipe for custom coloring in SLiMgui (recipe 7.4)
+	add/modify tests to improve code coverage
+	accelerate bulk setting of some common read-write SLiM properties (up to a 3x speedup for test cases)
+	switch SLiMgui over to a full document-based model (.slim files, save, revert, etc.)
+	highlight the recycle button green when changes have been made to the script since the last recycle
+	make multiple calls to initializeRecombinationRate() illegal, to prevent misunderstandings about how to make complex recombination maps
+	speed up syntax coloring for large files
+	fix hang during mate choice when all individuals are fitness <= 0.0
+
+2.2 (build 955; Eidos version 1.2):
+	added recombination() callback for individual-level recombination modifications
+	add containsMarkerMutation() method to Genome
+	add example recipe for recombination() callbacks, section 13.5
+	fix so final output from stop(), etc., gets to the output stream
+	added clock() function to Eidos for CPU time usage monitoring
+	improve tick labels in SLiMgui chromosome view
+	bounce the SLiMgui icon once when a run completes, for notification of the user
+	add MutationRun class for storing shared runs of mutations (performance enhancement)
+	add a tips/tricks window visible at startup, and make some items for it
+	converted the chromosome view to draw with OpenGL (performance enhancement)
+	add setValue()/getValue() dictionary capabilities to SLiMSim, Subpopulation, and Individual
+	revise recipe 11.1 to use setValue()/getValue()
+	add -d[efine] command-line argument for slim, to allow Eidos constants to be defined on the command line
+	NOTE: this version changed model output in many cases because the order of drawing mutations and breakpoints changed
+
+2.1.1 (build 924; Eidos version 1.1.1):
+	fix segfault with very large recombination maps (thanks Martin Petr)
+	fix some bad interactions between having sex enabled and using mateChoice()/modifyChild() callbacks (thanks Nathan Oakes)
+	fix a crash involving accessing the individuals of a subpop after changing the subpop size (caching bug) (thanks to Melissa Hubisz)
+	sort MS output by position (fix to regression; thanks Alexandre Harris)
+	add -mutationCounts method on SLiMSim, parallel to -mutationFrequencies
+
+2.1 (build 907; Eidos version 1.1):
+	Improve the fitness~time plot (display of subpopulation fitnesses, point/line plotting option)
+	Fix for minor code-completion and status line bugs
+	Add infinite loop prevention for mateChoice() and modifyChild() callbacks
+	Add "replace" parameter to outputSample() and outputMSSample() – BREAKS BACKWARD COMPATIBILITY
+	Add outputVCFSample()
+	Fix a bug in Genome's -containsMutations() method that caused it to produce incorrect results if its argument was a non-singleton vector
+	Add an Individual class to SLiM, and an "individuals" property to Subpopulation
+	Add type Individual parameters to SLiM callbacks as needed
+	Add a unique index and a tag to Mutation and Substitution
+	Added mutation id to output formats and load code, so it is preserved across save/load
+	The readFromPopulationFile() method of SLiMSim now sets the generation as a side effect
+	Change Eidos class methods to also work as non-multicast class methods (receiving the vector of objects as an operand)
+	Added size() class method in Eidos
+	Make code completion smart about functions like sample() that return the same type/class they are passed
+	Added sex property to Individual
+	Added file output to outputMutations() and outputFixedMutations()
+	Added deleteFile() function to Eidos
+	Improve display of very narrow recombination regions and genomic elements
+	Added DFE type 's' for user-defined scripts that generate selection coefficients
+	Add script/output show/hide menu command for SLiMgui
+	Add support for sex-specific recombination rates/maps
+	Add runtime memory overflow checking, disabled with -x command-line flag
+	Change addNewMutation() and addNewDrawnMutation() to be class methods – BREAKS BACKWARD COMPATIBILITY
+	Accelerated vectorized property access for singleton properties
+	Add "Open Recipe" menu in SLiMgui's File menu, for fast recipe access
+	Add default arguments and named arguments to Eidos function/method dispatch
+	Split ExecuteFunctionCall() into separate functions (no user-visible consequence)
+	Add file output and append options to all output methods
+	Add createDirectory() function to Eidos
+	Add automatic pedigree tracking to the Individual class
+	Add new initializeSLiMOptions() initialization function
+	Add uniqueMutations property and uniqueMutationsOfType() method to Individual
+	NOTE: this version changed model output in many cases, for reasons I haven't bothered to retrace
+
+2.0.4 (build 833; Eidos version 1.0.4)
+	Fix issue with interleaving of output from SLiM versus Eidos
+	Fix for a code completion bug with if() statements
+
+2.0.3 (build 828; Eidos version 1.0.3):
+	Greatly improved code completion facilities
+	Fix for build problem on Ubuntu
+
+2.0.2 (build 824; Eidos version 1.0.2):
+	Added beep() function to Eidos
+	Added setMutationType() method on Mutation
+	Added binary option for outputFull()
+	Added return of saved generation in readFromPopulationFile()
+
+2.0.1 (build 815; Eidos version 1.0.1):
+	Added format() to Eidos
+	Fixed performance issues in SLiMgui with a very large number of subpopulations
+
+2.0 (build 811; Eidos version 1.0):
+	Version history starts.

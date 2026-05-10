@@ -1,0 +1,23 @@
+// Keywords: culture, non-genetic inheritance
+
+initialize() {
+	initializeMutationRate(1e-7);
+	initializeMutationType("m1", 0.5, "f", 0.0);   // neutral
+	initializeMutationType("m2", 0.5, "f", 0.1);   // lactase-promoting
+	m2.convertToSubstitution = F;
+	initializeGenomicElementType("g1", c(m1,m2), c(0.99,0.01));
+	initializeGenomicElement(g1, 0, 99999);
+	initializeRecombinationRate(1e-8);
+}
+1 early() { sim.addSubpop("p1", 1000); }
+10000 early() { sim.simulationFinished(); }
+late() {
+	// Assign a cultural group: milk-drinker == T, non-milk-drinker == F
+	p1.individuals.tagL0 = (runif(1000) < 0.5);
+}
+mutationEffect(m2) {
+	if (individual.tagL0)
+		return effect;      // beneficial for milk-drinkers
+	else
+		return 1.0;         // neutral for non-milk-drinkers
+}

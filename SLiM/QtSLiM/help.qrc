@@ -1,0 +1,18 @@
+<RCC>
+    <qresource prefix="/">
+        <file>help/SLiMHelpCallbacks.html</file>
+        <file>help/SLiMHelpClasses.html</file>
+        <file>help/SLiMHelpFunctions.html</file>
+        <file>help/EidosHelpFunctions.html</file>
+        <file>help/EidosHelpClasses.html</file>
+        <file>help/EidosHelpOperators.html</file>
+        <file>help/EidosHelpStatements.html</file>
+        <file>help/EidosHelpTypes.html</file>
+        <file>help/TickCycle_nonWF.png</file>
+        <file>help/TickCycle_WF.png</file>
+        <file>help/TickCycle_nonWF_MS.png</file>
+        <file>help/TickCycle_WF_MS.png</file>
+        <file>help/ColorChart.png</file>
+        <file>help/PlotSymbols.png</file>
+    </qresource>
+</RCC>

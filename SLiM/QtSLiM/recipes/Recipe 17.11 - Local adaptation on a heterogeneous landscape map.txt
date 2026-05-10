@@ -1,0 +1,75 @@
+// Keywords: continuous space, continuous spatial landscape, spatial map, reprising boundaries, QTL, quantitative trait loci, spatial competition, spatial mate choice
+
+initialize() {
+	defineConstant("SIGMA_C", 0.1);
+	defineConstant("SIGMA_K", 0.5);
+	defineConstant("SIGMA_M", 0.1);
+	defineConstant("N", 500);
+	
+	initializeSLiMOptions(dimensionality="xyz");
+	initializeMutationRate(1e-6);
+	initializeMutationType("m1", 0.5, "f", 0.0);        // neutral
+	initializeMutationType("m2", 0.5, "n", 0.0, 1.0);   // QTL
+	m2.convertToSubstitution = F;
+	
+	initializeGenomicElementType("g1", c(m1, m2), c(1, 0.1));
+	initializeGenomicElement(g1, 0, 1e5 - 1);
+	initializeRecombinationRate(1e-8);
+	
+	// competition
+	initializeInteractionType(1, "xyz", reciprocal=T, maxDistance=SIGMA_C * 3);
+	i1.setInteractionFunction("n", 1.0, SIGMA_C);
+	
+	// mate choice
+	initializeInteractionType(2, "xyz", reciprocal=T, maxDistance=SIGMA_M * 3);
+	i2.setInteractionFunction("n", 1.0, SIGMA_M);
+}
+mutationEffect(m2) { return 1.0; }
+1 late() {
+	sim.addSubpop("p1", N);
+	p1.setSpatialBounds(c(0.0, 0.0, 0.0, 1.0, 1.0, 1.0));
+	p1.individuals.setSpatialPosition(p1.pointUniform(N));
+	p1.individuals.z = 0.0;
+	
+	defineConstant("MAPVALUES", matrix(runif(25, 0, 1), ncol=5));
+	map = p1.defineSpatialMap("map1", "xy", MAPVALUES, interpolate=T,
+		valueRange=c(0.0, 1.0), colors=c("red", "yellow"));
+	defineConstant("OPTIMUM", map);
+}
+modifyChild() {
+	// set offspring position based on parental position
+	do pos = c(parent1.spatialPosition[0:1] + rnorm(2, 0, 0.005), 0.0);
+	while (!p1.pointInBounds(pos));
+	child.setSpatialPosition(pos);
+	
+	return T;
+}
+1: late() {
+	// construct phenotypes and fitness effects from QTLs
+	inds = sim.subpopulations.individuals;
+	phenotype = inds.sumOfMutationsOfType(m2);
+	location = inds.spatialPosition[rep(c(T,T,F), inds.size())];
+	optimum = OPTIMUM.mapValue(location);
+	inds.fitnessScaling = 1.0 + dnorm(phenotype, optimum, SIGMA_K);
+	inds.z = phenotype;
+	
+	// color individuals according to phenotype
+	inds.color = OPTIMUM.mapColor(phenotype);
+	
+	// evaluate phenotypic competition
+	i1.evaluate(p1);
+	competition = sapply(inds, "sum(i1.strength(applyValue));");
+	effects = 1.0 - competition / size(inds);
+	inds.fitnessScaling = inds.fitnessScaling * effects;
+}
+2: first() {
+	// evaluate mate choice in preparation for reproduction
+	i2.evaluate(p1);
+}
+mateChoice() {
+	// spatial mate choice
+	return i2.strength(individual);
+}
+10000 late() {
+	sim.simulationFinished();
+}

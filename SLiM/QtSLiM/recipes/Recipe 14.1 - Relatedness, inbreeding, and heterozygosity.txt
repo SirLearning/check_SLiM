@@ -1,0 +1,22 @@
+// Keywords: 
+
+initialize() {
+	initializeSLiMOptions(keepPedigrees = T);
+	initializeMutationRate(1e-5);
+	initializeMutationType("m1", 0.5, "f", 0.0);
+	initializeGenomicElementType("g1", m1, 1.0);
+	initializeGenomicElement(g1, 0, 99999);
+	initializeRecombinationRate(1e-7);
+}
+1 early() {
+	sim.addSubpop("p1", 100);
+}
+mateChoice() {
+	// Prefer relatives as mates
+	return weights * (individual.relatedness(sourceSubpop.individuals) + 0.01);
+}
+1000 late() {
+	// Print mean heterozygosity across the population
+	heterozygosity = calcHeterozygosity(p1.haplosomes);
+	cat("Mean heterozygosity = " + heterozygosity + "\n");
+}

@@ -1,0 +1,31 @@
+// Keywords: 
+
+initialize() {
+	initializeMutationRate(1e-5);
+	initializeMutationType("m1", 0.45, "f", 0.5);  // sweep mutation
+	m1.convertToSubstitution = F;
+	m1.mutationStackPolicy = "f";
+	initializeGenomicElementType("g1", m1, 1.0);
+	initializeGenomicElement(g1, 0, 0);
+	initializeRecombinationRate(0);
+}
+1 early() {
+	sim.addSubpop("p1", 100000);
+}
+1:10000 early() {
+	counts = p1.haplosomes.countOfMutationsOfType(m1);
+	freq = mean(counts > 0);
+	
+	if (freq == 1.0)
+	{
+		cat("\nTotal mutations: " + size(sim.mutations) + "\n\n");
+		
+		for (mut in sortBy(sim.mutations, "originTick"))
+		{
+			mutFreq = mean(p1.haplosomes.containsMutations(mut));
+			cat("Origin " + mut.originTick + ": " + mutFreq + "\n");
+		}
+		
+		sim.simulationFinished();
+	}
+}

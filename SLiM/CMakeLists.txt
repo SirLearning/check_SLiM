@@ -1,0 +1,625 @@
+# To use CMake to build SLiM, create a new subdirectory alongside your source directory (assumed here
+# to be named SLiM), e.g., "build", then run the following commands:
+#
+#   cd build
+#   cmake ../SLiM
+#   make -j10
+#
+# This will make a Release build, with optimization and without debugging symbols, by default.
+# The built executables will be placed in the build directory upon successful completion. The optional
+# -j argument specifies the number of threads to use for the build, which should be a value related 
+# to the number of cores available on your machine (typically less than or equal to the number of cores).
+# 
+# You can also explicitly make a Release build; this is typically done in a directory named "Release"
+# instead of "build":
+#
+#   mkdir Release
+#   cd Release
+#   cmake -D CMAKE_BUILD_TYPE=Release ../SLiM
+#   make 
+#
+# Or you can make a Debug build (without optimization, with debugging symbols):
+#
+#   mkdir Debug
+#   cd Debug
+#   cmake -D CMAKE_BUILD_TYPE=Debug ../SLiM
+#   make 
+#
+# To build the Qt5-based GUI, make sure you have the Qt5 Widgets, Core, and Gui libraries installed,
+# then configure with:
+#   cd build
+#   cmake -D BUILD_SLIMGUI=ON ../SLiM
+#   make -j10
+#
+# In all cases the concept is the same: make a build directory of some name, cd into it, run cmake
+# to set up the build (with a CMAKE_BUILD_TYPE flag if desired, otherwise Release will be used by
+# default), then run make to actually do the build.  This setup (1) keeps all build products out of
+# your source tree, which is generally a good idea, and (2) allows you to have both Release and
+# Debug builds going simultaneously.
+#
+# You can do "make VERBOSE=1" instead of just "make" to see the full command lines used.  There are
+# also various targets defined by cmake for make, such as "slim", "eidos", "clean", "all", etc.  To
+# rebuild all of cmake's internal caches etc. (which is generally a good idea after a "git pull",
+# for example, or after the addition or removal of source files), the simplest thing is generally
+# to touch the CMakeLists.txt file in the source tree top-level directory:
+#
+#   touch ../SLiM/CMakeLists.txt
+#
+# Then you can just do "make"; cmake will automatically be re-run by make since the CMakeLists.txt
+# file has changed.
+
+
+# This syntax sets the minimum version to 2.8.12, for compatibility with very old installs, but
+# sets the "policy max" to 4.0.  It's hard to tell from the CMake doc whether the "policy" changes
+# that actually signs us up for matter (wow, CMake is complicated!); but we're not doing anything
+# fancy, so it's hard to imagine it matters.  Be careful to add the 4.0 policy max everywhere that
+# cmake_minimum_required is set.  BCH 4/12/2025
+cmake_minimum_required (VERSION 2.8.12...4.0 FATAL_ERROR)
+
+
+# clang-tidy support (for internal development); must come before the project() line
+# note that the hard-coded paths below will need to be fixed for other platforms
+option(TIDY "Run clang-tidy on SLiM (for development)" OFF)
+
+if(TIDY)
+	# cmake_minimum_required(VERSION 3.6...4.0 FATAL_ERROR)
+  if(CMAKE_VERSION VERSION_LESS "3.6")
+    message(FATAL_ERROR "To use the clang-tidy wrapper TIDY in this project you will need a version of CMake at least as new as 3.6.")
+  endif()
+	message(STATUS "TIDY is ${TIDY}; building with clang-tidy (for development)")
+	set(CMAKE_C_COMPILER "/opt/local/libexec/llvm-17/bin/clang")
+	set(CMAKE_CXX_COMPILER "/opt/local/libexec/llvm-17/bin/clang++")
+	find_program(CLANG_TIDY_EXE NAMES "clang-tidy" PATHS "/opt/local/libexec/llvm-17/bin/" NO_DEFAULT_PATH REQUIRED)
+	set(CLANG_TIDY_COMMAND "${CLANG_TIDY_EXE}" "-checks=-*,modernize-*,-modernize-redundant-void-arg,-modernize-use-trailing-return-type,-modernize-use-auto,-modernize-avoid-c-arrays,-modernize-use-equals-default,-modernize-deprecated-headers,-modernize-use-nullptr,-modernize-return-braced-init-list,-modernize-use-using,bugprone-*,-bugprone-narrowing-conversions,-bugprone-easily-swappable-parameters,-bugprone-reserved-identifier,-bugprone-suspicious-include,performance-*,-performance-avoid-endl,-performance-inefficient-string-concatenation")
+	message(STATUS "+++ clang-tidy is at ${CLANG_TIDY_EXE}")
+	message(STATUS "+++ CLANG_TIDY_COMMAND is ${CLANG_TIDY_COMMAND}")
+endif()
+
+
+# cppcheck support (for internal development)
+# for now this processes one file at a time; there is an alternative approach that
+# outputs a project file with CMAKE_EXPORT_COMPILE_COMMANDS and then runs cppcheck
+# on that, but I'm not sure how to do it within cmake so for now I'm punting on it
+option(CPPCHECK "Run cppcheck on SLiM (for development)" OFF)
+
+if(CPPCHECK)
+  if(CMAKE_VERSION VERSION_LESS "3.10")
+    message(FATAL_ERROR "To use the cppcheck wrapper CPPCHECK in this project you will need a version of CMake at least as new as 3.10.")
+  endif()
+  
+  find_program(CPPCHECK_EXECUTABLE cppcheck)
+  if (CPPCHECK_EXECUTABLE)
+    message(STATUS "CPPCHECK is ${CPPCHECK}; building with cppcheck (for development)")
+    set(CPPCHECK_COMMAND "${CPPCHECK_EXECUTABLE}" "--enable=all;--suppress=missingIncludeSystem;--suppress=syntaxError;--suppress=unmatchedSuppression;--inline-suppr;--std=c++11;--quiet;--suppress=*:robin_hood.h;--suppress=*:lodepng.cpp;--suppress=*:pcg_extras.hpp;--suppress=*:pcg_random.hpp;--suppress=checkersReport;--suppress=*:eidos_openmp.h;--suppress=unusedFunction")
+    message(STATUS "+++ cppcheck is at ${CPPCHECK_EXECUTABLE}")
+    message(STATUS "+++ CPPCHECK_COMMAND is ${CPPCHECK_COMMAND}")
+  else()
+    message(FATAL_ERROR "The CPPCHECK option could be enabled because the cppcheck command could not be found.")
+  endif()
+endif()
+
+# Support a COVERAGE flag for Codecov; see the GitHub Actions YAML file for the use of this
+option(COVERAGE "Enable code coverage" OFF)
+if(COVERAGE)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage")
+endif()
+
+project(SLiM)
+if(WIN32)
+    include(ExternalProject)
+endif()
+
+
+#
+#	BUILD OPTIONS
+#
+
+# Make a Release build by default
+if(NOT CMAKE_BUILD_TYPE) 
+    set(CMAKE_BUILD_TYPE Release)
+endif(NOT CMAKE_BUILD_TYPE)
+
+# Add "-D BUILD_SLIMGUI=ON" to the CMake command to build SLiMgui
+# This requires that Qt, a widget framework, is installed
+option(BUILD_SLIMGUI "Build the Qt-based GUI for SLiM" OFF)
+
+# Add "-D ASAN=ON" to the CMake command to build with ASan runtime checking
+option(ASAN "Build with ASan runtime checking" OFF)
+
+# Add "-D UBSAN=ON" to the CMake command to build with ASan runtime checking
+option(UBSAN "Build with UBSan runtime checking" OFF)
+
+# Add "-D PARALLEL=ON" to the CMake command to make a parallel (multi-threaded) build
+# This is supported only for the command-line tools, not for SLiMgui; do not set BUILD_SLIMGUI
+option(PARALLEL "Build parallel versions of eidos and slim" OFF)
+
+if(PARALLEL)
+	# BCH 12/4/2023: Parallel SLiM is presently unreleased and unsupported.  Caveat lector.
+	message(FATAL_ERROR "Multithreaded SLiM is not released, not thoroughly tested, and generally not yet ready for prime time.  It is not recommended for end-user use, especially not for 'production' runs, and the documentation for it is not yet public.  Please do not ask for any kind of support for this feature if you choose to experiment with it." )
+endif(PARALLEL)
+
+# Add "-D PROFILE=ON" to the CMake command to make a build of command-line slim with runtime profiling
+# This makes SLiM slower, so it is not for production use.  It may be set ON only for Release builds.
+option(PROFILE "Build slim for runtime profiling" OFF)
+
+# Add "-D BUILD_NATIVE=ON" to build natively for the build machine's architecture
+# this can result in better optimization, but the executable will only run on the build machine,
+# so it should only be enabled when you are building on the same machine you will do your runs on
+option(BUILD_NATIVE "Build native for the build machine" OFF)
+
+# Add "-D BUILD_LTO=ON" to enable link-time optimization; this may improve performance slightly,
+# but fails (see issue #33) on some machines with incompatible toolchains (so then don't enable it)
+option(BUILD_LTO "Build with link-time optimization" OFF)
+
+
+# obtain the Git commit SHA-1; see ./cmake/_README.txt and https://stackoverflow.com/a/4318642/2752221
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/")
+include(GetGitRevisionDescription)
+get_git_head_revision(GIT_REFSPEC GIT_SHA1)
+#message(STATUS "GIT_SHA1 is ${GIT_SHA1}")
+
+
+# Use the flags below for [all / Debug / Release] builds; these flags are built in to cmake
+# Note that -fno-math-errno is deliberately set for C++ (for eidos and slim) but not for C (for gsl, eidos_zlib, kastore, tables)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c11 -Wno-attributes -Wunused-label -Wimplicit -Wunused-variable -Wunused-value -Wno-pragmas -Wempty-body -Wshadow -Wparentheses -Wmissing-prototypes -Wswitch -Wpointer-sign -Wsign-compare -Wstrict-prototypes -Wno-sign-conversion -Wuninitialized")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wno-attributes -Wunused-label -Wunused-variable -Wunused-value -Wno-pragmas -Wempty-body -Wshadow -Wparentheses -Wswitch -Wsign-compare -Wno-sign-conversion -Wuninitialized -fno-math-errno")
+
+# Add -march=native if requested
+if(BUILD_NATIVE)
+	message(STATUS "BUILD_NATIVE is ${BUILD_NATIVE}; building native (for this machine only)")
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+endif()
+
+# Windows specific flags and variables
+if(WIN32)
+    set(CMAKE_CXX_STANDARD_LIBRARIES "-static-libgcc -static-libstdc++ -lwsock32 -lws2_32 ${CMAKE_CXX_STANDARD_LIBRARIES}")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-Bstatic,--whole-archive -lwinpthread -Wl,--no-whole-archive")
+    set(GNULIB_NAMESPACE_SOURCES "${PROJECT_SOURCE_DIR}/core/chromosome.cpp" 
+        "${PROJECT_SOURCE_DIR}/core/haplosome.cpp" 
+        "${PROJECT_SOURCE_DIR}/core/individual.cpp" 
+        "${PROJECT_SOURCE_DIR}/core/population.cpp"
+        "${PROJECT_SOURCE_DIR}/core/slim_globals.cpp"
+        "${PROJECT_SOURCE_DIR}/core/slim_sim_eidos.cpp"
+        "${PROJECT_SOURCE_DIR}/core/slim_sim.cpp"
+        "${PROJECT_SOURCE_DIR}/core/species.cpp"
+        "${PROJECT_SOURCE_DIR}/core/species_eidos.cpp"
+        "${PROJECT_SOURCE_DIR}/core/subpopulation.cpp"
+        "${PROJECT_SOURCE_DIR}/eidos/eidos_functions_files.cpp"
+        "${PROJECT_SOURCE_DIR}/eidos/eidos_functions_other.cpp"
+        "${PROJECT_SOURCE_DIR}/eidos/eidos_globals.cpp"
+        "${PROJECT_SOURCE_DIR}/eidos/eidos_class_DataFrame.cpp"
+        "${PROJECT_SOURCE_DIR}/QtSLiM/QtSLiMAbout.cpp"
+        "${PROJECT_SOURCE_DIR}/QtSLiM/QtSLiMAppDelegate.cpp"
+        "${PROJECT_SOURCE_DIR}/QtSLiM/QtSLiMFindRecipe.cpp"
+        "${PROJECT_SOURCE_DIR}/QtSLiM/QtSLiMGraphView.cpp"
+        "${PROJECT_SOURCE_DIR}/QtSLiM/QtSLiMHaplotypeOptions.cpp"
+        "${PROJECT_SOURCE_DIR}/QtSLiM/QtSLiMHelpWindow.cpp"
+        "${PROJECT_SOURCE_DIR}/QtSLiM/QtSLiMScriptTextEdit.cpp"
+        "${PROJECT_SOURCE_DIR}/QtSLiM/QtSLiMVariableBrowser.cpp"
+        "${PROJECT_SOURCE_DIR}/QtSLiM/QtSLiMWindow.cpp")
+endif()
+
+set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -g -Og -DDEBUG=1")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -Og -DDEBUG=1")
+
+set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
+
+# Build with ASan enabled if requested
+if(ASAN)
+	message(STATUS "ASAN is ${ASAN}")
+	add_compile_options(-fsanitize=address -fno-omit-frame-pointer) # -fno-omit-frame-pointer for better stack traces
+	add_link_options(-fsanitize=address)
+else()
+	message(STATUS "ASAN is ${ASAN}; use -DASAN=ON to enable ASan run-time checking")
+endif(ASAN)
+
+# Build with UBSan enabled if requested
+if(UBSAN)
+	message(STATUS "UBSAN is ${UBSAN}")
+	add_compile_options(-fsanitize=undefined -fno-omit-frame-pointer) # -fno-omit-frame-pointer for better stack traces
+	add_link_options(-fsanitize=undefined)
+else()
+	message(STATUS "UBSAN is ${UBSAN}; use -DUBSAN=ON to enable UBSan run-time checking")
+endif(UBSAN)
+
+# Report whether the build is parallel or not
+if(PARALLEL)
+	# -Xclang is also needed on macOS; it is not set here since macOS builds are done in Xcode
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fopenmp")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
+	link_directories(/usr/local/lib/)
+	message(STATUS "PARALLEL is ${PARALLEL}")
+else()
+	# At least for now, I don't want to advertise the existence of this flag
+	#message(STATUS "PARALLEL is ${PARALLEL}; use -DPARALLEL=ON to enable OpenMP parallelization")
+endif(PARALLEL)
+
+# Report whether the build has runtime profiling support or not
+if(PROFILE)
+	# compile flags for this get set at the end of this script
+	message(STATUS "PROFILE is ${PROFILE}")
+else()
+	# At least for now, I don't want to advertise the existence of this flag
+	#message(STATUS "PROFILE is ${PROFILE}; use -PROFILE=ON to enable runtime profiling")
+endif(PROFILE)
+
+# Report the build type and SLiMgui build status
+message(STATUS "CMAKE_BUILD_TYPE is ${CMAKE_BUILD_TYPE}")
+
+if(BUILD_SLIMGUI)
+	message(STATUS "BUILD_SLIMGUI is ${BUILD_SLIMGUI}")
+else()
+	message(STATUS "BUILD_SLIMGUI is ${BUILD_SLIMGUI}; use -DBUILD_SLIMGUI=ON to enable building SLiMgui")
+endif()
+
+# Windows compat
+if(WIN32)
+    set(GNU_DIR ${CMAKE_CURRENT_BINARY_DIR}/libgnu-prefix/src/libgnu-build)
+    set(GNU_STATIC_LIB ${GNU_DIR}/gllib/libgnu.a)
+    set(GNU_INCLUDES ${GNU_DIR}/gllib)
+
+    file(MAKE_DIRECTORY ${GNU_INCLUDES})
+
+    ExternalProject_Add(libgnu
+        SOURCE_DIR ${PROJECT_SOURCE_DIR}/windows_compat/gnulib
+        CONFIGURE_COMMAND ${PROJECT_SOURCE_DIR}/windows_compat/gnulib/configure
+        BUILD_COMMAND ${MAKE}
+        BUILD_BYPRODUCTS ${GNU_STATIC_LIB})
+
+    add_library(gnu STATIC IMPORTED GLOBAL)
+    add_dependencies(gnu libgnu)
+    set_target_properties(gnu PROPERTIES IMPORTED_LOCATION ${GNU_STATIC_LIB})
+    set_target_properties(gnu PROPERTIES INTERFACE_INCLUDE_DIRECTORIES ${GNU_INCLUDES})
+    set_target_properties(gnu PROPERTIES INTERFACE_SYSTEM_INCLUDE_DIRECTORIES ${GNU_INCLUDES})
+endif()
+
+# Do link-time optimization with -flto if requested and supported
+if(BUILD_LTO)
+    include(CheckCXXCompilerFlag)
+    include(CheckCCompilerFlag)
+    CHECK_CXX_COMPILER_FLAG(-flto CXX_SUPPORTS_FLTO)
+    CHECK_C_COMPILER_FLAG(-flto C_SUPPORTS_FLTO)
+    if(CXX_SUPPORTS_FLTO AND C_SUPPORTS_FLTO)
+        message(STATUS "BUILD_LTO is ${BUILD_LTO}; building with link-time optimization")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -flto")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -flto")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -flto")
+    else()
+        message(AUTHOR_WARNING "BUILD_LTO is ${BUILD_LTO} but -flto is not supported by the compiler")
+    endif()
+endif()
+
+#
+# SIMD SUPPORT (independent of OpenMP)
+#
+
+# Option to disable SIMD entirely
+option(USE_SIMD "Enable SIMD optimizations (SSE4.2/AVX2 on x86_64, NEON on ARM64)" ON)
+
+# Check architecture
+# CMAKE_SYSTEM_PROCESSOR is "x86_64" on Intel Macs and Linux x86_64, "arm64"/"aarch64" on ARM
+set(IS_X86_64 FALSE)
+set(IS_ARM64 FALSE)
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|amd64|i686|i386")
+    set(IS_X86_64 TRUE)
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64|ARM64")
+    set(IS_ARM64 TRUE)
+endif()
+
+if(USE_SIMD AND NOT WIN32 AND IS_X86_64)
+    include(CheckCXXCompilerFlag)
+
+    # Check for AVX2 support
+    check_cxx_compiler_flag("-mavx2" COMPILER_SUPPORTS_AVX2)
+    check_cxx_compiler_flag("-msse4.2" COMPILER_SUPPORTS_SSE42)
+    check_cxx_compiler_flag("-mfma" COMPILER_SUPPORTS_FMA)
+
+    if(COMPILER_SUPPORTS_AVX2)
+        message(STATUS "SIMD: AVX2 support detected")
+        add_compile_definitions(EIDOS_HAS_AVX2=1)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx2")
+        if(COMPILER_SUPPORTS_FMA)
+            message(STATUS "SIMD: FMA support detected")
+            add_compile_definitions(EIDOS_HAS_FMA=1)
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mfma")
+        endif()
+    elseif(COMPILER_SUPPORTS_SSE42)
+        message(STATUS "SIMD: SSE4.2 support detected (no AVX2)")
+        add_compile_definitions(EIDOS_HAS_SSE42=1)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -msse4.2")
+    else()
+        message(STATUS "SIMD: No x86 SIMD support detected, using scalar fallback")
+    endif()
+elseif(USE_SIMD AND NOT WIN32 AND IS_ARM64)
+    # ARM64 NEON is always available on ARM64, no compiler flag needed
+    message(STATUS "SIMD: ARM64 NEON support enabled")
+    add_compile_definitions(EIDOS_HAS_NEON=1)
+elseif(USE_SIMD AND NOT WIN32)
+    message(STATUS "SIMD: Unknown architecture (${CMAKE_SYSTEM_PROCESSOR}), using scalar fallback")
+elseif(USE_SIMD AND WIN32)
+    # Windows SIMD detection - MinGW uses GCC, so we can use the same flags as Linux
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        include(CheckCXXCompilerFlag)
+        check_cxx_compiler_flag("-mavx2" COMPILER_SUPPORTS_AVX2_WIN)
+        check_cxx_compiler_flag("-mfma" COMPILER_SUPPORTS_FMA_WIN)
+
+        if(COMPILER_SUPPORTS_AVX2_WIN)
+            message(STATUS "SIMD: AVX2 support detected (Windows/MinGW)")
+            add_compile_definitions(EIDOS_HAS_AVX2=1)
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mavx2")
+            if(COMPILER_SUPPORTS_FMA_WIN)
+                message(STATUS "SIMD: FMA support detected (Windows/MinGW)")
+                add_compile_definitions(EIDOS_HAS_FMA=1)
+                set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mfma")
+            endif()
+        else()
+            message(STATUS "SIMD: No AVX2 support on Windows/MinGW, using scalar fallback")
+        endif()
+    else()
+        # MSVC path - not currently used but could be added in the future
+        message(STATUS "SIMD: MSVC SIMD detection not yet implemented, using scalar fallback")
+    endif()
+else()
+    message(STATUS "SIMD: Disabled by user")
+endif()
+
+# GSL - adding /usr/local/include so all targets that use GSL_INCLUDES get omp.h
+set(TARGET_NAME_GSL gsl)
+file(GLOB_RECURSE GSL_SOURCES ${PROJECT_SOURCE_DIR}/gsl/*.c ${PROJECT_SOURCE_DIR}/gsl/*/*.c)
+set(GSL_INCLUDES ${PROJECT_SOURCE_DIR}/gsl ${PROJECT_SOURCE_DIR}/gsl/specfunc ${PROJECT_SOURCE_DIR}/gsl/blas ${PROJECT_SOURCE_DIR}/gsl/rng ${PROJECT_SOURCE_DIR}/gsl/cdf ${PROJECT_SOURCE_DIR}/gsl/vector ${PROJECT_SOURCE_DIR}/gsl/err ${PROJECT_SOURCE_DIR}/gsl/sys ${PROJECT_SOURCE_DIR}/gsl/randist ${PROJECT_SOURCE_DIR}/gsl/matrix ${PROJECT_SOURCE_DIR}/gsl/cblas ${PROJECT_SOURCE_DIR}/gsl/complex ${PROJECT_SOURCE_DIR}/gsl/block ${PROJECT_SOURCE_DIR}/gsl/interpolation ${PROJECT_SOURCE_DIR}/gsl/linalg ${PROJECT_SOURCE_DIR}/gsl/permutation /usr/local/include)
+add_library(${TARGET_NAME_GSL} STATIC ${GSL_SOURCES})
+target_include_directories(${TARGET_NAME_GSL} PUBLIC ${GSL_INCLUDES})
+
+# ZLIB
+set(TARGET_NAME_ZLIB eidos_zlib)
+file(GLOB_RECURSE ZLIB_SOURCES ${PROJECT_SOURCE_DIR}/eidos_zlib/*.c)
+set(ZLIB_INCLUDES ${PROJECT_SOURCE_DIR}/eidos_zlib)
+add_library(${TARGET_NAME_ZLIB} STATIC ${ZLIB_SOURCES})
+target_include_directories(${TARGET_NAME_ZLIB} PUBLIC)
+
+# KASTORE
+set(TARGET_NAME_KASTORE kastore)
+file(GLOB_RECURSE KASTORE_SOURCES ${PROJECT_SOURCE_DIR}/treerec/tskit/kastore/*.c)
+set(KASTORE_INCLUDES ${PROJECT_SOURCE_DIR}/treerec/tskit/kastore)
+add_library(${TARGET_NAME_KASTORE} STATIC ${KASTORE_SOURCES})
+target_include_directories(${TARGET_NAME_KASTORE} PUBLIC)
+
+# TSKIT
+set(TARGET_NAME_TSKIT tables)
+file(GLOB_RECURSE TABLE_SOURCES ${PROJECT_SOURCE_DIR}/treerec/tskit/*.c)
+set(TSKIT_INCLUDES ${PROJECT_SOURCE_DIR}/treerec)
+add_library(${TARGET_NAME_TSKIT} STATIC ${TABLE_SOURCES})
+target_include_directories(${TARGET_NAME_TSKIT} PRIVATE ${GSL_INCLUDES} ${KASTORE_INCLUDES})
+target_include_directories(${TARGET_NAME_TSKIT} PUBLIC ${KASTORE_INCLUDES} ${TSKIT_INCLUDES})
+if(WIN32)
+    target_link_libraries(${TARGET_NAME_TSKIT} PUBLIC gnu)
+endif()
+
+# SLIM
+if(PARALLEL)
+	set(TARGET_NAME_SLIM slim_multi)
+else()
+	set(TARGET_NAME_SLIM slim)
+endif(PARALLEL)
+file(GLOB_RECURSE SLIM_SOURCES ${PROJECT_SOURCE_DIR}/core/*.cpp ${PROJECT_SOURCE_DIR}/eidos/*.cpp)
+
+# use the Git commit SHA-1 obtained above
+configure_file("${PROJECT_SOURCE_DIR}/cmake/GitSHA1.cpp.in" "${CMAKE_CURRENT_BINARY_DIR}/GitSHA1.cpp" @ONLY)
+list(APPEND SLIM_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/GitSHA1.cpp" ${PROJECT_SOURCE_DIR}/cmake/GitSHA1.h)
+
+add_executable(${TARGET_NAME_SLIM} ${SLIM_SOURCES})
+target_include_directories(${TARGET_NAME_SLIM} PRIVATE ${GSL_INCLUDES} "${PROJECT_SOURCE_DIR}/core" "${PROJECT_SOURCE_DIR}/eidos")
+target_link_libraries(${TARGET_NAME_SLIM} PUBLIC gsl eidos_zlib tables)
+if(PARALLEL)
+	# linking in the OpenMP library is maybe automatic with gcc?
+	#target_link_libraries(${TARGET_NAME_SLIM} PUBLIC omp)
+endif()
+if(WIN32)
+    set_source_files_properties(${SLIM_SOURCES} PROPERTIES COMPILE_FLAGS "-include config.h")
+    set_source_files_properties(${GNULIB_NAMESPACE_SOURCES} TARGET_DIRECTORY slim PROPERTIES COMPILE_FLAGS "-include config.h -DGNULIB_NAMESPACE=gnulib")
+    target_include_directories(${TARGET_NAME_SLIM} BEFORE PUBLIC ${GNU_DIR})
+    target_link_libraries(${TARGET_NAME_SLIM} PUBLIC gnu PRIVATE bcrypt)
+endif()
+
+# EIDOS
+if(PARALLEL)
+	set(TARGET_NAME_EIDOS eidos_multi)
+else()
+	set(TARGET_NAME_EIDOS eidos)
+endif(PARALLEL)
+
+file(GLOB_RECURSE EIDOS_SOURCES  ${PROJECT_SOURCE_DIR}/eidos/*.cpp  ${PROJECT_SOURCE_DIR}/eidostool/*.cpp)
+add_executable(${TARGET_NAME_EIDOS} ${EIDOS_SOURCES})
+target_include_directories(${TARGET_NAME_EIDOS} PRIVATE ${GSL_INCLUDES} "${PROJECT_SOURCE_DIR}/eidos")
+target_link_libraries(${TARGET_NAME_EIDOS} PUBLIC gsl eidos_zlib tables)
+if(PARALLEL)
+	# linking in the OpenMP library is maybe automatic with gcc?
+	#target_link_libraries(${TARGET_NAME_EIDOS} PUBLIC omp)
+endif()
+if(WIN32)
+    set_source_files_properties(${EIDOS_SOURCES} PROPERTIES COMPILE_FLAGS "-include config.h")
+    set_source_files_properties(${GNULIB_NAMESPACE_SOURCES} TARGET_DIRECTORY slim eidos PROPERTIES COMPILE_FLAGS "-include config.h -DGNULIB_NAMESPACE=gnulib")
+    target_include_directories(${TARGET_NAME_EIDOS} BEFORE PUBLIC ${GNU_DIR})
+    target_link_libraries(${TARGET_NAME_EIDOS} PUBLIC gnu PRIVATE bcrypt)
+endif()
+
+if(PARALLEL)
+	install(TARGETS slim_multi eidos_multi DESTINATION bin)
+else()
+	install(TARGETS slim eidos DESTINATION bin)
+endif(PARALLEL)
+
+# SLiMgui -- this can be enabled with the -DBUILD_SLIMGUI=ON option to cmake
+if(BUILD_SLIMGUI)
+  cmake_minimum_required (VERSION 3.1.0...4.0 FATAL_ERROR)
+  set(TARGET_NAME_SLIMGUI SLiMgui)
+  find_package(OpenGL REQUIRED)
+
+  # Default to Qt6 if available, fall back to Qt5; this defines QT_VERSION_MAJOR to be either 5 or 6
+  # This is complicated slightly by the modules needed differing between Qt5 and Qt6
+  # see https://doc.qt.io/qt-6/cmake-qt5-and-qt6-compatibility.html
+  # I found that find_package(QT NAMES Qt6 Qt5 ...) was behaving oddly, so I shifted to the below
+  find_package(Qt6 COMPONENTS Core Gui Widgets OpenGLWidgets)
+  if(Qt6_FOUND)
+    set(QT_VERSION_MAJOR 6)
+    message(STATUS "Found Qt6 (${Qt6_VERSION}) at ${QT6_INSTALL_PREFIX}")
+  else()
+    find_package(Qt5 COMPONENTS Core Gui Widgets)
+    if(Qt5_FOUND)
+      set(QT_VERSION_MAJOR 5)
+      message(STATUS "Could not find Qt6; if this is unexpected, you may wish to set Qt6_DIR and/or CMAKE_PREFIX_PATH")
+      message(STATUS "Found Qt5 (${Qt5_VERSION}) at ${Qt5_DIR}")
+      # note that on macOS, Qt5 has only the x86_64 architecture, so if you are on macOS-arm64 your build will fail
+      # you can supply -D CMAKE_OSX_ARCHITECTURES="x86_64" at the command line and it should build for x86_64
+    else()
+      message(FATAL_ERROR "Could not find Qt5 or Qt6; you may wish to set Qt6_DIR, Qt5_DIR, and/or CMAKE_PREFIX_PATH")
+    endif()
+  endif()
+  
+  # a useful bit of debugging code that prints all defined variables
+  #get_cmake_property(_variableNames VARIABLES)
+  #list (SORT _variableNames)
+  #foreach (_variableName ${_variableNames})
+  #  message(STATUS "${_variableName}=${${_variableName}}")
+  #endforeach()
+
+  if(WIN32)
+    set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME_SLIMGUI}_autogen/mocs_compilation.cpp" PROPERTIES COMPILE_FLAGS "-include config.h -DGNULIB_NAMESPACE=gnulib")
+  endif()
+
+  set(CMAKE_AUTOMOC ON)
+  set(CMAKE_AUTORCC ON)
+  set(CMAKE_AUTOUIC ON)
+  list(REMOVE_ITEM SLIM_SOURCES ${PROJECT_SOURCE_DIR}/core/main.cpp)
+  file(GLOB_RECURSE QTSLIM_SOURCES ${PROJECT_SOURCE_DIR}/QtSLiM/*.cpp ${PROJECT_SOURCE_DIR}/QtSLiM/*.qrc ${PROJECT_SOURCE_DIR}/eidos/*.cpp)
+  add_executable(${TARGET_NAME_SLIMGUI} "${QTSLIM_SOURCES}" "${SLIM_SOURCES}")
+  set_target_properties( ${TARGET_NAME_SLIMGUI} PROPERTIES LINKER_LANGUAGE CXX)
+  target_compile_definitions( ${TARGET_NAME_SLIMGUI} PRIVATE EIDOSGUI=1 SLIMGUI=1)
+  target_include_directories(${TARGET_NAME_SLIMGUI} PUBLIC ${GSL_INCLUDES} "${PROJECT_SOURCE_DIR}/QtSLiM" "${PROJECT_SOURCE_DIR}/eidos" "${PROJECT_SOURCE_DIR}/core" "${PROJECT_SOURCE_DIR}/treerec" "${PROJECT_SOURCE_DIR}/treerec/tskit/kastore")
+  
+  # Qt dependencies, which depend on the Qt version used.  For Qt6, we also need C++17; the last -std flag supplied ought to take priority.
+  if(${QT_VERSION_MAJOR} EQUAL 5)
+    target_link_libraries( ${TARGET_NAME_SLIMGUI} PUBLIC Qt5::Widgets Qt5::Core Qt5::Gui )
+  else()
+    target_link_libraries( ${TARGET_NAME_SLIMGUI} PUBLIC Qt6::Widgets Qt6::Core Qt6::Gui Qt6::OpenGLWidgets )
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c17")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
+  endif()
+  
+  # Operating System-specific install stuff.
+  if(APPLE)
+    target_link_libraries( ${TARGET_NAME_SLIMGUI} PUBLIC OpenGL::GL gsl tables eidos_zlib )
+  else()
+    if(WIN32)
+      set_source_files_properties(${QTSLIM_SOURCES} PROPERTIES COMPILE_FLAGS "-include config.h")
+      set_source_files_properties(${GNULIB_NAMESPACE_SOURCES} TARGET_DIRECTORY slim eidos SLiMgui PROPERTIES COMPILE_FLAGS "-include config.h -DGNULIB_NAMESPACE=gnulib")
+      target_include_directories(${TARGET_NAME_SLIMGUI} BEFORE PUBLIC ${GNU_DIR})
+      target_link_libraries(${TARGET_NAME_SLIMGUI} PUBLIC OpenGL::GL gsl tables eidos_zlib gnu PRIVATE bcrypt)
+    else()
+      target_link_libraries( ${TARGET_NAME_SLIMGUI} PUBLIC OpenGL::GL gsl tables eidos_zlib )
+
+      # Install icons and desktop files to the data root directory (usually /usr/local/share, or /usr/share).
+      if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.14")
+        install(DIRECTORY data/ TYPE DATA)
+      else()
+        message(WARNING "The CMake version is less than 3.14, so installation of icons, desktop files, mime types, etc. must occur manually.")
+      endif()
+    endif()
+  endif()
+
+  install(TARGETS ${TARGET_NAME_SLIMGUI} DESTINATION bin)
+endif(BUILD_SLIMGUI)
+
+
+# Deal with the PROFILE and PARALLEL flags, which interact and are handled in a complex way.
+#
+# For SLiMgui, profiling is always on for Release builds, always off for Debug builds; PROFILE does not affect it
+# For slim, profiling follows the PROFILE setting for Release builds, but in Debug builds it is an error for PROFILE to be on
+# For eidos, profiling is always off; the eidos command-line tool does not support profiling on its own, only in SLiM
+#
+# Note that SLiMgui cannot be built parallel; if you want to build parallel, do not set BUILD_SLIMGUI
+
+if(PROFILE)
+	if(CMAKE_BUILD_TYPE STREQUAL Debug)
+		message(FATAL_ERROR "PROFILE is not allowed for Debug builds")
+	endif()
+
+	if(PARALLEL)
+		target_compile_definitions( eidos_multi PRIVATE SLIMPROFILING=0)
+		target_compile_definitions( slim_multi PRIVATE SLIMPROFILING=1)
+	else()
+		target_compile_definitions( eidos PRIVATE SLIMPROFILING=0)
+		target_compile_definitions( slim PRIVATE SLIMPROFILING=1)
+	endif(PARALLEL)
+else()
+	if(PARALLEL)
+		target_compile_definitions( eidos_multi PRIVATE SLIMPROFILING=0)
+		target_compile_definitions( slim_multi PRIVATE SLIMPROFILING=0)
+	else()
+		target_compile_definitions( eidos PRIVATE SLIMPROFILING=0)
+		target_compile_definitions( slim PRIVATE SLIMPROFILING=0)
+	endif(PARALLEL)
+endif(PROFILE)
+
+if(BUILD_SLIMGUI)
+	if(CMAKE_BUILD_TYPE STREQUAL Release)
+		target_compile_definitions( SLiMgui PRIVATE SLIMPROFILING=1)
+	else()
+		target_compile_definitions( SLiMgui PRIVATE SLIMPROFILING=0)
+	endif(CMAKE_BUILD_TYPE STREQUAL Release)
+
+	if(PARALLEL)
+		message(FATAL_ERROR "PARALLEL is not allowed for SLiMgui; running SLiMgui multi-threaded is not supported.  If you wish to build SLiM parallel, do not set BUILD_SLIMGUI for that build.")
+	endif()
+endif(BUILD_SLIMGUI)
+
+# implement clang-tidy for all end-user targets (not for gsl, zlib, kastore, tskit)
+if(TIDY)
+	if(PARALLEL)
+		set_target_properties(eidos_multi PROPERTIES CXX_CLANG_TIDY "${CLANG_TIDY_COMMAND}")
+		set_target_properties(slim_multi PROPERTIES CXX_CLANG_TIDY "${CLANG_TIDY_COMMAND}")
+	else()
+		set_target_properties(eidos PROPERTIES CXX_CLANG_TIDY "${CLANG_TIDY_COMMAND}")
+		set_target_properties(slim PROPERTIES CXX_CLANG_TIDY "${CLANG_TIDY_COMMAND}")
+	endif(PARALLEL)
+	if(BUILD_SLIMGUI)
+		set_target_properties(SLiMgui PROPERTIES CXX_CLANG_TIDY "${CLANG_TIDY_COMMAND}")
+	endif(BUILD_SLIMGUI)
+endif()
+
+# implement cppcheck for all end-user targets (not for gsl, zlib, kastore, tskit)
+if(CPPCHECK)
+	if(PARALLEL)
+		set_target_properties(eidos_multi PROPERTIES CXX_CPPCHECK "${CPPCHECK_COMMAND}")
+		set_target_properties(slim_multi PROPERTIES CXX_CPPCHECK "${CPPCHECK_COMMAND}")
+	else()
+		set_target_properties(eidos PROPERTIES CXX_CPPCHECK "${CPPCHECK_COMMAND}")
+		set_target_properties(slim PROPERTIES CXX_CPPCHECK "${CPPCHECK_COMMAND}")
+	endif(PARALLEL)
+	if(BUILD_SLIMGUI)
+		set_target_properties(SLiMgui PROPERTIES CXX_CPPCHECK "${CPPCHECK_COMMAND}")
+	endif(BUILD_SLIMGUI)
+endif()
+
+# add testing so it can be called using make test
+enable_testing()
+
+# test SLiM
+add_test(
+  NAME testSLiM
+  COMMAND ${TARGET_NAME_SLIM} -testSLiM
+)
+# test Eidos from SLiM
+add_test(
+  NAME testEidosSLiM
+  COMMAND ${TARGET_NAME_SLIM} -testEidos
+)
+
+# test Eidos from Eidos
+add_test(
+  NAME testEidosEidos
+  COMMAND ${TARGET_NAME_EIDOS} -testEidos
+)

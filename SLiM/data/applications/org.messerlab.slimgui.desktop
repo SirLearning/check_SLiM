@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Exec=SLiMgui %f
+Name=SLiMgui
+GenericName=The SLiM modeling environment.
+Icon=org.messerlab.slimgui
+StartupWMClass=org.messerlab.SLiMgui
+Terminal=false
+Categories=Education;Science;Biology;
+MimeType=text/slim;text/plain;
